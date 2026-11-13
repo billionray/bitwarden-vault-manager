@@ -12,7 +12,7 @@ import { t } from './i18n.js';
  */
 export function analyzeCiphers(ciphers) {
   // Only analyze login type (type=1)
-  const logins = ciphers.filter(c => c.type === 1);
+  const logins = ciphers.filter(c => c.type === 1 && !c.decrypted?.error);
   const others = ciphers.filter(c => c.type !== 1);
 
   const exactDupes = findExactDuplicates(logins);
@@ -44,45 +44,6 @@ export function analyzeCiphers(ciphers) {
 // ========================
 
 /**
- * Compare two decrypted items to determine if they are 100% identical
- * Compares ALL meaningful fields, not just URI+user+pass
- */
-function isDeeplyIdentical(a, b) {
-  const da = a.decrypted || {};
-  const db = b.decrypted || {};
-
-  // Core fields
-  if (da.name !== db.name) return false;
-  if ((da.username || '').toLowerCase() !== (db.username || '').toLowerCase()) return false;
-  if (da.password !== db.password) return false;
-  if (da.totp !== db.totp) return false;
-  if ((da.notes || '') !== (db.notes || '')) return false;
-
-  // URIs (compare sorted sets)
-  const urisA = (da.uris || []).filter(Boolean).sort().join('|');
-  const urisB = (db.uris || []).filter(Boolean).sort().join('|');
-  if (urisA !== urisB) return false;
-
-  // Custom fields
-  const fieldsA = serializeFields(da.fields);
-  const fieldsB = serializeFields(db.fields);
-  if (fieldsA !== fieldsB) return false;
-
-  // Passkeys (compare by CredentialId)
-  const passkeysA = getPasskeyIds(a).sort().join('|');
-  const passkeysB = getPasskeyIds(b).sort().join('|');
-  if (passkeysA !== passkeysB) return false;
-
-  // Favorite & Reprompt
-  const favA = a.raw?.Favorite || a.raw?.favorite || false;
-  const favB = b.raw?.Favorite || b.raw?.favorite || false;
-  if (favA !== favB) return false;
-  if ((da.reprompt || 0) !== (db.reprompt || 0)) return false;
-
-  return true;
-}
-
-/**
  * Find specific differences between two items
  * Returns array of diff labels for UI display
  */
@@ -90,6 +51,13 @@ function findDiffFields(a, b) {
   const da = a.decrypted || {};
   const db = b.decrypted || {};
   const diffs = [];
+
+  if ((da.username || '') !== (db.username || '')) diffs.push(t('detail.username'));
+  if ((da.password || '') !== (db.password || '')) diffs.push(t('detail.password'));
+  if (JSON.stringify(da.passwordHistory || []) !== JSON.stringify(db.passwordHistory || [])) diffs.push(t('detail.password.history'));
+  if ((a.raw?.FolderId || a.raw?.folderId || null) !== (b.raw?.FolderId || b.raw?.folderId || null)) diffs.push('Folder');
+  const matches = item => (item.raw?.Login?.Uris || item.raw?.login?.uris || []).map(u => u.Match ?? u.match ?? null);
+  if (JSON.stringify(matches(a)) !== JSON.stringify(matches(b))) diffs.push('URI match');
 
   // Name
   if (da.name !== db.name) diffs.push(t('dup.title.warn'));
@@ -158,7 +126,7 @@ function findExactDuplicates(logins) {
     const uri = getPrimaryUri(login);
     const username = login.decrypted?.username || '';
     const password = login.decrypted?.password || '';
-    const key = `exact::${normalizeUri(uri)}::${username.toLowerCase()}::${password}`;
+    const key = JSON.stringify([normalizeUri(uri), username, password]);
 
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(login);
@@ -282,354 +250,89 @@ function sortByQuality(items) {
 
 /**
  * Build merge operations from selected groups
- * Uses _original as base for encrypted-layer merge
+ * Merge decrypted fields; the payload builder encrypts using the destination key.
  * Returns { toCreate: [...], toDelete: [...], errors: [...] }
  *
  * toCreate has two formats:
  *   1. Normal (isPasskeyMerge=false): decrypted plaintext fields
- *   2. Passkey (isPasskeyMerge=true): merged encrypted _original + passkey data
+ *   2. Passkey (isPasskeyMerge=true): plaintext fields + retained key/passkey data
  *      Execution layer converts to Create-Then-Delete (same as single-item edit save)
  */
 export function buildMergeOperations(selectedGroups) {
-  const toCreate = [];  // Path B: items to create (plaintext or passkey-merge)
-  const toDelete = [];  // IDs to soft-delete
-  const errors = [];
-
+  const toCreate = [], toDelete = [], errors = [], pureDeleteGroups = [];
+  const handled = new Set();
   for (const group of selectedGroups) {
-    const keepItem = group.keepItem;
-    const removeItems = group.items.filter(i => i.id !== keepItem.id);
-    if (removeItems.length === 0) continue;
-
-    // === Path A: Pure Delete (100% identical) ===
-    if (group.pureDelete) {
-      for (const item of removeItems) toDelete.push(item.id);
-      continue;
+    const items = group.items;
+    const fail = reason => errors.push({ groupLabel: group.label, reason });
+    if (items.length < 2) continue;
+    if (items.some(i => handled.has(i.id))) { fail(t('merge.overlap')); continue; }
+    if (items.some(i => !i.decrypted || i.decrypted.error)) { fail(t('merge.decrypt.failed')); continue; }
+    const original = i => i.raw?._original || i.raw || {};
+    if (items.some(i => {
+      const raw = original(i);
+      return raw.OrganizationId || raw.organizationId || (raw.Attachments || raw.attachments || []).length;
+    })) { fail(t('merge.unsupported.metadata')); continue; }
+    const values = field => [...new Set(items.map(i => i.decrypted[field] || '').filter(Boolean))];
+    if (['username', 'password', 'totp'].some(field => values(field).length > 1)) {
+      fail(t('merge.credentials.conflict')); continue;
     }
-
-    // Check if any item has passkeys
-    const hasPasskeys = group.items.some(i =>
-      (i.raw?.Login?.Fido2Credentials?.length || 0) > 0
-    );
-
-    if (hasPasskeys) {
-      // === Path B (Passkey): Merge data then Create-Then-Delete ===
-      buildPasskeyMerge_CreateThenDelete(group, keepItem, removeItems, toCreate, toDelete, errors);
+    const passkeyItems = items.filter(i => getPasskeyCredentials(i).length > 0);
+    // Never discard another item's passkeys. Encrypted IDs cannot be compared across keys.
+    if (passkeyItems.length > 1) { fail(t('merge.multiple.passkeys')); continue; }
+    const keepItem = passkeyItems[0] || group.keepItem || items[0];
+    if (!items.includes(keepItem)) { fail(t('merge.decrypt.failed')); continue; }
+    if (items.some(i => {
+      const raw = original(i);
+      return (raw.PasswordHistory || raw.passwordHistory || []).length && !i.decrypted.passwordHistory;
+    })) { fail(t('merge.decrypt.failed')); continue; }
+    const pureDelete = analyzeGroupDiffs(items).pureDelete;
+    if (pureDelete) {
+      pureDeleteGroups.push(items.filter(i => i.id !== keepItem.id).map(i => i.id));
+      for (const item of items) if (item.id !== keepItem.id) toDelete.push(item.id);
     } else {
-      // === Path B (Normal): Create-Then-Delete ===
-      buildPathB_CreateThenDelete(group, keepItem, removeItems, toCreate, toDelete, errors);
-    }
-  }
-
-  return { toCreate, toDelete, errors };
-}
-
-/**
- * Path B: Create a new merged item from decrypted data, then delete all originals.
- * Outputs a toCreate entry with plaintext fields ready for encryption.
- */
-function buildPathB_CreateThenDelete(group, keepItem, removeItems, toCreate, toDelete, errors) {
-  const allItems = group.items;
-
-  // === 1. Smart Title Selection ===
-  const allNames = allItems.map(i => i.decrypted?.name || '').filter(Boolean);
-  const uniqueNames = [...new Set(allNames)];
-  const { chosen: bestTitle, discarded: discardedTitles } = chooseBestTitle(uniqueNames);
-
-  // === 2. Notes: longest + append discarded titles ===
-  let bestNotes = '';
-  for (const item of allItems) {
-    const n = item.decrypted?.notes || '';
-    if (n.length > bestNotes.length) bestNotes = n;
-  }
-  if (discardedTitles.length > 0) {
-    bestNotes = (bestNotes ? bestNotes + '\n' : '') + `合并前的其他标题: ${discardedTitles.join(', ')}`;
-  }
-
-  // === 3. Username & Password: from keepItem (highest quality) ===
-  const username = keepItem.decrypted?.username || '';
-  const password = keepItem.decrypted?.password || '';
-
-  // === 4. TOTP: from whichever has it ===
-  let totp = '';
-  for (const item of allItems) {
-    if (item.decrypted?.totp) { totp = item.decrypted.totp; break; }
-  }
-
-  // === 5. URIs: union of all unique URIs, with URL simplification ===
-  const seenOrigins = new Set();
-  const mergedUris = [];
-  for (const item of allItems) {
-    const uris = item.decrypted?.uris || [];
-    for (const uri of uris) {
-      if (!uri) continue;
-      const simplified = simplifyUrl(uri);
-      if (!seenOrigins.has(simplified)) {
-        seenOrigins.add(simplified);
-        mergedUris.push(simplified); // Use simplified URL
+      const { chosen, discarded } = chooseBestTitle([...new Set(items.map(i => i.decrypted.name || '').filter(Boolean))]);
+      const notes = [...new Set(items.map(i => i.decrypted.notes || '').filter(Boolean))];
+      if (discarded.length) notes.push('合并前的其他标题: ' + discarded.join(', '));
+      const fields = [], uris = [], passwordHistory = [];
+      const seenFields = new Set(), seenUris = new Set(), seenHistory = new Set();
+      for (const item of items) {
+        for (const field of item.decrypted.fields || []) {
+          const key = JSON.stringify([field.name, field.value, field.type, field.linkedId]);
+          if (!seenFields.has(key)) { seenFields.add(key); fields.push({ ...field }); }
+        }
+        const rawLogin = item.raw?.Login || item.raw?.login || {};
+        (item.decrypted.uris || []).forEach((uri, index) => {
+          if (!uri) return;
+          const rawUri = (rawLogin.Uris || rawLogin.uris || [])[index];
+          const match = rawUri?.Match ?? rawUri?.match ?? null;
+          const key = JSON.stringify([uri, match]);
+          if (!seenUris.has(key)) { seenUris.add(key); uris.push({ uri, match }); }
+        });
+        for (const history of item.decrypted.passwordHistory || []) {
+          const key = JSON.stringify([history.password, history.lastUsedDate]);
+          if (!seenHistory.has(key)) { seenHistory.add(key); passwordHistory.push({ ...history }); }
+        }
       }
+      const raw = original(keepItem);
+      const login = raw.Login || raw.login || {};
+      toCreate.push({
+        groupLabel: group.label, type: 1, name: chosen, notes: notes.join('\n\n') || null,
+        username: values('username')[0] || '', password: values('password')[0] || '', totp: values('totp')[0] || null,
+        uris, fields, passwordHistory,
+        folderId: keepItem.raw?.FolderId || keepItem.raw?.folderId || null,
+        favorite: items.some(i => i.raw?.Favorite || i.raw?.favorite),
+        reprompt: items.some(i => (i.raw?.Reprompt ?? i.raw?.reprompt ?? 0) === 1) ? 1 : 0,
+        passwordRevisionDate: login.PasswordRevisionDate ?? login.passwordRevisionDate ?? keepItem.decrypted.passwordRevisionDate ?? null,
+        autofillOnPageLoad: login.AutofillOnPageLoad ?? login.autofillOnPageLoad ?? null,
+        isPasskeyMerge: passkeyItems.length > 0,
+        cipherKey: raw.Key || raw.key || keepItem.raw?.Key || null,
+        fido2Credentials: login.Fido2Credentials || login.fido2Credentials || [],
+      });
+      toDelete.push(...items.map(i => i.id));
     }
+    items.forEach(i => handled.add(i.id));
   }
-
-  // === 6. Custom Fields: union by name ===
-  const seenFieldNames = new Set();
-  const mergedFields = [];
-  for (const item of allItems) {
-    const fields = item.decrypted?.fields || [];
-    for (const f of fields) {
-      const key = f.name || '';
-      if (!seenFieldNames.has(key)) {
-        seenFieldNames.add(key);
-        mergedFields.push({ name: f.name || '', value: f.value || '', type: f.type ?? 0 });
-      }
-    }
-  }
-
-  // === 7. Favorite & Reprompt: OR of all ===
-  const favorite = allItems.some(i => i.raw?.Favorite || i.raw?.favorite);
-  const reprompt = allItems.some(i => (i.raw?.Reprompt ?? i.raw?.reprompt ?? 0) === 1) ? 1 : 0;
-
-  // === 8. FolderId: from keepItem ===
-  const folderId = keepItem.raw?.FolderId || keepItem.raw?.folderId || null;
-
-  // === 9. Type: from keepItem (should be 1 for Login) ===
-  const type = keepItem.raw?.Type ?? keepItem.raw?.type ?? 1;
-
-  toCreate.push({
-    groupLabel: group.label,
-    type,
-    name: bestTitle,
-    notes: bestNotes || null,
-    username,
-    password,
-    totp: totp || null,
-    uris: mergedUris,
-    fields: mergedFields.length > 0 ? mergedFields : null,
-    folderId,
-    favorite,
-    reprompt,
-    // PasswordHistory: merge from all items (raw encrypted, pass through)
-    passwordHistory: collectPasswordHistory(allItems),
-  });
-
-  // Delete ALL originals (including keepItem — we're creating a new one)
-  for (const item of allItems) {
-    toDelete.push(item.id);
-  }
-}
-
-/**
- * Passkey Merge: Merge data into the passkey-holding item's _original,
- * then output as a Create-Then-Delete operation.
- *
- * Data merge logic preserved:
- *   1. 确定保留项 (keepItem = passkey holder, via sortByQuality)
- *   2. 基底数据 (deep copy keepItem._original)
- *   3. 逐个遍历 removeItems, merge URIs/TOTP/Fields/Notes/Favorite/Reprompt
- *   4. 标题智能选择 (chooseBestTitle)
- *   5. 输出 → toCreate with isPasskeyMerge=true (Create-Then-Delete)
- *
- * The passkey item cannot be updated via PUT (per-cipher Key causes API failure),
- * so we create a brand new cipher carrying the per-cipher Key + Fido2Credentials,
- * then delete ALL original items.
- */
-function buildPasskeyMerge_CreateThenDelete(group, keepItem, removeItems, toCreate, toDelete, errors) {
-  const base = keepItem.raw?._original;
-  if (!base) {
-    errors.push({
-      groupLabel: group.label,
-      reason: '缺少原始数据 (_original)，无法合并通行密钥条目，仅执行删除',
-    });
-    for (const item of removeItems) toDelete.push(item.id);
-    return;
-  }
-
-  let needsMerge = false;
-  const updatedCipher = JSON.parse(JSON.stringify(base));
-  const keepLogin = updatedCipher.Login || updatedCipher.login;
-
-  // === Smart Title Selection ===
-  const allNames = group.items.map(i => i.decrypted?.name || '').filter(Boolean);
-  const uniqueNames = [...new Set(allNames)];
-  let titleOverride = null;
-  let notesAppend = null;
-
-  if (uniqueNames.length > 1) {
-    const { chosen, discarded } = chooseBestTitle(uniqueNames);
-    if (chosen !== keepItem.decrypted?.name) {
-      titleOverride = chosen;
-      needsMerge = true;
-    }
-    if (discarded.length > 0) {
-      notesAppend = `\n合并前的其他标题: ${discarded.join(', ')}`;
-      needsMerge = true;
-    }
-  }
-
-  for (const item of removeItems) {
-    const removeRaw = item.raw?._original || item.raw;
-
-    // 1. Merge URIs
-    if (keepLogin && removeRaw?.Login) {
-      const removeUris = removeRaw.Login.Uris || removeRaw.Login.uris || [];
-      const existingUris = keepLogin.Uris || keepLogin.uris || [];
-      const seenValues = new Set(existingUris.map(u => u.Uri || u.uri));
-      const newUris = removeUris.filter(u => !seenValues.has(u.Uri || u.uri));
-      if (newUris.length > 0) {
-        const merged = [...existingUris, ...newUris];
-        if (keepLogin.Uris !== undefined) keepLogin.Uris = merged;
-        if (keepLogin.uris !== undefined) keepLogin.uris = merged;
-        needsMerge = true;
-      }
-    }
-
-    // 1.5. Merge Password (passkey-only item has no password → take from removeItem)
-    if (keepLogin && removeRaw?.Login) {
-      const keepPw = keepLogin.Password || keepLogin.password || '';
-      const removePw = removeRaw.Login.Password || removeRaw.Login.password || '';
-      if (!keepPw && removePw) {
-        if (keepLogin.Password !== undefined) keepLogin.Password = removePw;
-        else keepLogin.password = removePw;
-        needsMerge = true;
-      }
-    }
-
-    // 1.6. Merge Username (passkey-only item may have no username → take from removeItem)
-    if (keepLogin && removeRaw?.Login) {
-      const keepUser = keepLogin.Username || keepLogin.username || '';
-      const removeUser = removeRaw.Login.Username || removeRaw.Login.username || '';
-      if (!keepUser && removeUser) {
-        if (keepLogin.Username !== undefined) keepLogin.Username = removeUser;
-        else keepLogin.username = removeUser;
-        needsMerge = true;
-      }
-    }
-
-    // 2. Merge TOTP
-    if (keepLogin && removeRaw?.Login) {
-      const keepTotp = keepLogin.Totp || keepLogin.totp;
-      const removeTotp = removeRaw.Login.Totp || removeRaw.Login.totp;
-      if (!keepTotp && removeTotp) {
-        if (keepLogin.Totp !== undefined) keepLogin.Totp = removeTotp;
-        if (keepLogin.totp !== undefined) keepLogin.totp = removeTotp;
-        needsMerge = true;
-      }
-    }
-
-    // 3. Merge custom fields
-    const removeFields = removeRaw.Fields || removeRaw.fields || [];
-    const existingFields = updatedCipher.Fields || updatedCipher.fields || [];
-    if (removeFields.length > 0) {
-      const seenNames = new Set(existingFields.map(f => f.Name || f.name));
-      const newFields = removeFields.filter(f => !seenNames.has(f.Name || f.name));
-      if (newFields.length > 0) {
-        const merged = [...existingFields, ...newFields];
-        updatedCipher.Fields = merged;
-        if (updatedCipher.fields !== undefined) updatedCipher.fields = merged;
-        needsMerge = true;
-      }
-    }
-
-    // 4. Merge notes (keep longer one)
-    const keepNotes = updatedCipher.Notes || updatedCipher.notes || '';
-    const removeNotes = removeRaw.Notes || removeRaw.notes || '';
-    if (removeNotes && (!keepNotes || removeNotes.length > keepNotes.length)) {
-      updatedCipher.Notes = removeNotes;
-      if (updatedCipher.notes !== undefined) updatedCipher.notes = removeNotes;
-      needsMerge = true;
-    }
-
-    // 5. Merge Favorite
-    const removeFav = removeRaw.Favorite || removeRaw.favorite;
-    if (removeFav && !(updatedCipher.Favorite || updatedCipher.favorite)) {
-      updatedCipher.Favorite = true;
-      if (updatedCipher.favorite !== undefined) updatedCipher.favorite = true;
-      needsMerge = true;
-    }
-
-    // 6. Merge Reprompt
-    const removeReprompt = removeRaw.Reprompt ?? removeRaw.reprompt ?? 0;
-    const keepReprompt = updatedCipher.Reprompt ?? updatedCipher.reprompt ?? 0;
-    if (removeReprompt === 1 && keepReprompt !== 1) {
-      updatedCipher.Reprompt = 1;
-      if (updatedCipher.reprompt !== undefined) updatedCipher.reprompt = 1;
-      needsMerge = true;
-    }
-  }
-
-  // Finalize Login object
-  if (keepLogin) {
-    updatedCipher.Login = keepLogin;
-    if (updatedCipher.login !== undefined) updatedCipher.login = keepLogin;
-  }
-
-  if (!updatedCipher.Name && !updatedCipher.name) {
-    errors.push({
-      groupLabel: group.label,
-      reason: '合并后缺少 Name 字段，跳过',
-    });
-    return;
-  }
-
-  // Extract passkey data from keepItem (passkey holder)
-  const cipherKey = keepItem.raw?.Key || keepItem.raw?.key
-    || keepItem.raw?._original?.Key || keepItem.raw?._original?.key || null;
-  const origLogin = keepItem.raw?._original?.Login || keepItem.raw?._original?.login || {};
-  const fido2Credentials = origLogin.Fido2Credentials || origLogin.fido2Credentials || [];
-
-  toCreate.push({
-    groupLabel: group.label,
-    // === Passkey merge flag ===
-    isPasskeyMerge: true,
-    // Merged encrypted _original data (same structure as API response)
-    mergedOriginal: updatedCipher,
-    // Per-cipher encryption key (encrypted string, pass-through)
-    cipherKey,
-    // Fido2 credentials (encrypted, pass-through from keepItem)
-    fido2Credentials,
-    // Plaintext overrides (execution layer will encrypt with per-cipher key)
-    titleOverride,
-    notesAppend,
-    // Password history from all items
-    passwordHistory: collectPasswordHistory(group.items),
-  });
-
-  // Delete ALL items (including keepItem — we're creating a brand new cipher)
-  for (const item of group.items) {
-    toDelete.push(item.id);
-  }
-}
-
-/**
- * Collect password history from all items (raw encrypted, pass through)
- */
-function collectPasswordHistory(allItems) {
-  const history = [];
-  const seen = new Set();
-  for (const item of allItems) {
-    const ph = item.raw?._original?.PasswordHistory || item.raw?.PasswordHistory || [];
-    for (const h of ph) {
-      const key = (h.Password || h.password || '') + '|' + (h.LastUsedDate || h.lastUsedDate || '');
-      if (!seen.has(key)) {
-        seen.add(key);
-        history.push(h);
-      }
-    }
-  }
-  return history.length > 0 ? history : null;
-}
-
-/**
- * Simplify URL to just protocol://hostname
- */
-function simplifyUrl(url) {
-  try {
-    const u = new URL(url);
-    // Use registered domain for a canonical origin
-    const cleanHost = getRegisteredDomain(u.hostname.toLowerCase());
-    return `${u.protocol}//${cleanHost}`;
-  } catch {
-    return url;
-  }
+  return { toCreate, toDelete, errors, pureDeleteGroups };
 }
 
 /**
@@ -641,6 +344,7 @@ function simplifyUrl(url) {
  * @returns {{ chosen: string, discarded: string[] }}
  */
 function chooseBestTitle(titles) {
+  if (titles.length === 0) return { chosen: t('item.untitled'), discarded: [] };
   if (titles.length === 1) return { chosen: titles[0], discarded: [] };
 
   // Classify each title
@@ -746,14 +450,17 @@ function normalizeUri(uri) {
 function serializeFields(fields) {
   if (!fields || fields.length === 0) return '';
   return fields
-    .map(f => `${f.name || ''}::${f.value || ''}::${f.type ?? 0}`)
+    .map(f => JSON.stringify([f.name || '', f.value || '', f.type ?? 0, f.linkedId ?? null]))
     .sort()
     .join('||');
 }
 
+function getPasskeyCredentials(cipher) {
+  return cipher.raw?.Login?.Fido2Credentials || cipher.raw?.login?.fido2Credentials || cipher.raw?._original?.Login?.Fido2Credentials || cipher.raw?._original?.login?.fido2Credentials || [];
+}
+
 function getPasskeyIds(cipher) {
-  const creds = cipher.raw?.Login?.Fido2Credentials || cipher.raw?.login?.fido2Credentials || [];
-  return creds.map(p => p.CredentialId || p.credentialId || '').filter(Boolean);
+  return getPasskeyCredentials(cipher).map(p => p.CredentialId || p.credentialId || '').filter(Boolean);
 }
 
 function setsEqual(a, b) {

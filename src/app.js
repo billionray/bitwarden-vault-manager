@@ -1,3 +1,4 @@
+import { buildCipherCreatePayload, buildPasskeyMergePayload } from './merge-payload.js';
 import { BitwardenClient, normalizeServerUrl } from './bitwarden-api.js';
 import { makeMasterKey, stretchKey, decryptSymmetricKey, decryptToString, encryptString } from './crypto.js';
 import { analyzeCiphers, buildMergeOperations } from './dedup-engine.js';
@@ -1464,7 +1465,7 @@ async function refetchSingleCipher(cipher) {
         if (fieldFailed(rawFName)) decryptErrors.push('field.name');
         if (fieldFailed(rawFValue)) decryptErrors.push('field.value');
         const fieldType = f.Type ?? f.type ?? 0;
-        cipher.decrypted.fields.push({ name: fieldValue(rawFName), value: fieldValue(rawFValue), type: fieldType });
+        cipher.decrypted.fields.push({ name: fieldValue(rawFName), value: fieldValue(rawFValue), type: fieldType, linkedId: f.LinkedId ?? f.linkedId ?? null });
       }
     }
 
@@ -4673,8 +4674,9 @@ async function handleMerge(groups) {
         }
 
         // Count pure-delete groups as successes
-        const pureDeleteGroups = allGroups.filter(g => g.pureDelete);
-        successGroups += pureDeleteGroups.length;
+        if (successDeletes === safeToDelete.length) {
+          successGroups += operations.pureDeleteGroups.filter(ids => ids.every(id => safeToDelete.includes(id))).length;
+        }
 
         updateMergeProgress(100, t('merge.done'));
         hideMergeProgress();
@@ -4718,205 +4720,6 @@ function updateMergeLockUI(locked) {
  * Encrypts all fields using the symmetric key.
  * Follows the official Bitwarden CipherRequest model (camelCase).
  */
-async function buildCipherCreatePayload(op, isDemoMode, symKey) {
-  const enc = async (val) => {
-    if (!val) return null;
-    return isDemoMode ? val : await encryptString(val, symKey);
-  };
-
-  const payload = {
-    type: op.type ?? 1,
-    organizationId: null,
-    folderId: op.folderId || null,
-    name: await enc(op.name || t('item.untitled')),
-    notes: await enc(op.notes),
-    favorite: op.favorite || false,
-    reprompt: op.reprompt ?? 0,
-  };
-
-  // Login
-  if (op.type === 1) {
-    const uris = [];
-    for (const uri of (op.uris || [])) {
-      if (uri) {
-        uris.push({
-          uri: await enc(uri),
-          match: null,
-        });
-      }
-    }
-    payload.login = {
-      username: await enc(op.username),
-      password: await enc(op.password),
-      totp: await enc(op.totp),
-      uris,
-    };
-  }
-
-  // Custom fields
-  if (op.fields && op.fields.length > 0) {
-    payload.fields = [];
-    for (const f of op.fields) {
-      payload.fields.push({
-        name: await enc(f.name),
-        value: await enc(f.value),
-        type: f.type ?? 0,
-      });
-    }
-  }
-
-  // Password history (raw encrypted, pass-through — already encrypted)
-  if (op.passwordHistory && op.passwordHistory.length > 0) {
-    payload.passwordHistory = op.passwordHistory.map(h => ({
-      password: h.Password || h.password,
-      lastUsedDate: h.LastUsedDate || h.lastUsedDate,
-    }));
-  }
-
-  return payload;
-}
-
-/**
- * Build a POST /ciphers payload for passkey-merge items.
- * Mirrors saveEditedCipher's Create-Then-Delete strategy exactly.
- * Takes merged encrypted _original and builds a camelCase create payload
- * with per-cipher Key + Fido2Credentials.
- */
-async function buildPasskeyMergePayload(op, isDemoMode, symKey) {
-  const src = op.mergedOriginal;  // Merged encrypted _original
-  const g = (obj, ...keys) => { for (const k of keys) { if (obj && obj[k] != null) return obj[k]; } return null; };
-
-  // Determine the per-cipher encryption key
-  let encKey = symKey;
-  if (!isDemoMode && op.cipherKey) {
-    try {
-      encKey = await decryptSymmetricKey(op.cipherKey, symKey);
-      console.log('[Merge] Using per-cipher key for passkey merge encryption');
-    } catch (err) {
-      console.warn('[Merge] Failed to decrypt per-cipher Key, falling back to master key:', err.message);
-    }
-  }
-
-  // Handle titleOverride: re-encrypt with per-cipher key
-  if (op.titleOverride) {
-    if (isDemoMode) {
-      src.Name = op.titleOverride;
-      if (src.name !== undefined) src.name = op.titleOverride;
-    } else {
-      const encTitle = await encryptString(op.titleOverride, encKey);
-      src.Name = encTitle;
-      if (src.name !== undefined) src.name = encTitle;
-    }
-  }
-
-  // Handle notesAppend: decrypt current → append → re-encrypt with per-cipher key
-  if (op.notesAppend) {
-    if (isDemoMode) {
-      const currentNotes = src.Notes || src.notes || '';
-      const merged = currentNotes + op.notesAppend;
-      src.Notes = merged;
-      if (src.notes !== undefined) src.notes = merged;
-    } else {
-      const currentEncNotes = src.Notes || src.notes || '';
-      let plain = '';
-      if (currentEncNotes) {
-        try { plain = await decryptToString(currentEncNotes, encKey) || ''; }
-        catch { plain = ''; }
-      }
-      const merged = plain + op.notesAppend;
-      const encNotes = await encryptString(merged, encKey);
-      src.Notes = encNotes;
-      if (src.notes !== undefined) src.notes = encNotes;
-    }
-  }
-
-  // Build camelCase create payload (same structure as saveEditedCipher)
-  const payload = {
-    type: src.Type ?? src.type ?? 1,
-    organizationId: g(src, 'OrganizationId', 'organizationId') || null,
-    folderId: g(src, 'FolderId', 'folderId') || null,
-    name: g(src, 'Name', 'name'),
-    notes: g(src, 'Notes', 'notes') || null,
-    favorite: src.Favorite ?? src.favorite ?? false,
-    reprompt: src.Reprompt ?? src.reprompt ?? 0,
-    key: op.cipherKey,  // Per-cipher Key (pass-through)
-  };
-
-  // Login
-  const srcLogin = src.Login || src.login;
-  if (srcLogin) {
-    const login = {
-      username: g(srcLogin, 'Username', 'username') || null,
-      password: g(srcLogin, 'Password', 'password') || null,
-      passwordRevisionDate: g(srcLogin, 'PasswordRevisionDate', 'passwordRevisionDate') || null,
-      totp: g(srcLogin, 'Totp', 'totp') || null,
-      autofillOnPageLoad: g(srcLogin, 'AutofillOnPageLoad', 'autofillOnPageLoad') || null,
-    };
-
-    // URIs
-    const uris = g(srcLogin, 'Uris', 'uris') || [];
-    login.uris = uris.map(u => {
-      const uriObj = {
-        uri: g(u, 'Uri', 'uri') || null,
-        match: u.Match ?? u.match ?? null,
-      };
-      const checksum = g(u, 'UriChecksum', 'uriChecksum');
-      if (checksum) uriObj.uriChecksum = checksum;
-      return uriObj;
-    });
-
-    // Fido2 credentials (from dedup-engine output)
-    if (op.fido2Credentials && op.fido2Credentials.length > 0) {
-      login.fido2Credentials = op.fido2Credentials.map(k => ({
-        credentialId: g(k, 'CredentialId', 'credentialId') || null,
-        keyType: g(k, 'KeyType', 'keyType') || null,
-        keyAlgorithm: g(k, 'KeyAlgorithm', 'keyAlgorithm') || null,
-        keyCurve: g(k, 'KeyCurve', 'keyCurve') || null,
-        keyValue: g(k, 'KeyValue', 'keyValue') || null,
-        rpId: g(k, 'RpId', 'rpId') || null,
-        rpName: g(k, 'RpName', 'rpName') || null,
-        counter: g(k, 'Counter', 'counter') || null,
-        userHandle: g(k, 'UserHandle', 'userHandle') || null,
-        userName: g(k, 'UserName', 'userName') || null,
-        userDisplayName: g(k, 'UserDisplayName', 'userDisplayName') || null,
-        discoverable: g(k, 'Discoverable', 'discoverable') || null,
-        creationDate: g(k, 'CreationDate', 'creationDate') || null,
-      }));
-    }
-
-    payload.login = login;
-  }
-
-  // Fields
-  const fields = src.Fields || src.fields;
-  if (fields && fields.length > 0) {
-    payload.fields = fields.map(f => ({
-      type: f.Type ?? f.type ?? 0,
-      name: g(f, 'Name', 'name') || null,
-      value: g(f, 'Value', 'value') || null,
-      linkedId: f.LinkedId ?? f.linkedId ?? null,
-    }));
-  } else {
-    payload.fields = null;
-  }
-
-  // Other types — null for login
-  payload.secureNote = null;
-  payload.card = null;
-  payload.identity = null;
-  payload.sshKey = null;
-
-  // Password history
-  if (op.passwordHistory && op.passwordHistory.length > 0) {
-    payload.passwordHistory = op.passwordHistory.map(ph => ({
-      lastUsedDate: ph.LastUsedDate || ph.lastUsedDate || null,
-      password: ph.Password || ph.password || null,
-    }));
-  }
-
-  return payload;
-}
-
 /**
  * Handle single card merge — merge one exact group
  */
@@ -5021,6 +4824,12 @@ async function handleSingleMerge(groups, gi, btnEl) {
       operations.errors.forEach(e => {
         showToast(`⚠️ ${e.groupLabel}: ${e.reason}`, 'warning');
       });
+    }
+
+    if (!operations.toCreate.length && !operations.toDelete.length) {
+      btnEl.textContent = t('dup.merge.single');
+      btnEl.classList.remove('merging');
+      return;
     }
 
     // === Create merged items (normal + passkey) ===

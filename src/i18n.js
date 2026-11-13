@@ -6,6 +6,11 @@
 let currentLocale = 'zh';
 
 const translations = {
+  'merge.overlap': { zh: '条目已包含在另一合并组中，本组保留原条目。', en: 'Items overlap another merge group; originals retained.' },
+  'merge.decrypt.failed': { zh: '条目数据未完整解密，已保留原条目。', en: 'Item data is not fully decrypted; originals retained.' },
+  'merge.unsupported.metadata': { zh: '组织条目或含附件的条目暂不支持自动合并，已保留原条目。', en: 'Organization items and attachments cannot be auto-merged; originals retained.' },
+  'merge.credentials.conflict': { zh: '用户名、密码或 TOTP 存在冲突，已保留原条目。', en: 'Conflicting usernames, passwords or TOTP secrets; originals retained.' },
+  'merge.multiple.passkeys': { zh: '多个条目包含通行密钥，无法安全确认一致性，已保留原条目。', en: 'Multiple items contain passkeys; originals retained because equivalence cannot be verified safely.' },
   // === Login Page ===
   'login.title': { zh: '密码管理面板', en: 'Password Manager' },
   'login.subtitle': { zh: '安全连接你的保险库 · 智能去重 · 批量管理 · 健康分析', en: 'Secure vault · Smart dedup · Batch ops · Health check' },
