@@ -1,4 +1,5 @@
 import { buildCipherCreatePayload, buildPasskeyMergePayload } from './merge-payload.js';
+import { encryptCredentials, decryptCredentials } from './credential-file.js';
 import { BitwardenClient, normalizeServerUrl } from './bitwarden-api.js';
 import { makeMasterKey, stretchKey, decryptSymmetricKey, decryptToString, encryptString } from './crypto.js';
 import { analyzeCiphers, buildMergeOperations } from './dedup-engine.js';
@@ -4928,59 +4929,6 @@ function escAttr(str) {
 // ========================
 // CREDENTIAL FILE SYSTEM
 // ========================
-const CRED_APP_SALT = 'BW-VaultManager-CredFile-v1';
-
-async function deriveCredFileKey() {
-  const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(CRED_APP_SALT), 'PBKDF2', false, ['deriveKey']);
-  return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: enc.encode('bw-credfile-salt-2026'), iterations: 100000, hash: 'SHA-256' },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
-  );
-}
-
-async function encryptCredentials(data) {
-  const key = await deriveCredFileKey();
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encoded = new TextEncoder().encode(JSON.stringify(data));
-  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
-  // Combine: [12-byte IV][ciphertext] then Base64-encode for text-based download
-  const combined = new Uint8Array(iv.length + encrypted.byteLength);
-  combined.set(iv);
-  combined.set(new Uint8Array(encrypted), iv.length);
-  // Convert to Base64 string
-  let binary = '';
-  for (let i = 0; i < combined.length; i++) binary += String.fromCharCode(combined[i]);
-  return btoa(binary);
-}
-
-async function decryptCredentials(buffer) {
-  const key = await deriveCredFileKey();
-  let data;
-  // Support both Base64 text (new) and raw binary (legacy)
-  if (buffer instanceof ArrayBuffer) {
-    const text = new TextDecoder().decode(buffer);
-    try {
-      // Try Base64 decode first
-      const binary = atob(text.trim());
-      data = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) data[i] = binary.charCodeAt(i);
-    } catch {
-      // Fallback: raw binary
-      data = new Uint8Array(buffer);
-    }
-  } else {
-    data = new Uint8Array(buffer);
-  }
-  const iv = data.slice(0, 12);
-  const ciphertext = data.slice(12);
-  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
-  return JSON.parse(new TextDecoder().decode(decrypted));
-}
-
 function setupCredFileImport() {
   const dropZone = $('#cred-drop-zone');
   const fileInput = $('#cred-file-input');
@@ -5024,7 +4972,7 @@ async function handleCredFile(file) {
 
   try {
     const buffer = await file.arrayBuffer();
-    const creds = await decryptCredentials(buffer);
+    const creds = await decryptCredentials(buffer, $('#cred-import-password').value);
 
     // Fill in the API Key fields
     if (creds.clientId) $('#client-id').value = creds.clientId;
@@ -5046,7 +4994,10 @@ async function handleCredFile(file) {
     await handleApiKeyLogin();
   } catch (err) {
     console.error('Credential file decrypt error:', err);
-    setLoginState('error', t('credfile.login.invalid'));
+    setLoginState('error', t(err.message === 'legacy_credential_file' ? 'credfile.legacy' : 'credfile.login.invalid'));
+  } finally {
+    $('#cred-import-password').value = '';
+    $('#cred-file-input').value = '';
   }
 }
 
@@ -5086,6 +5037,15 @@ function renderCredFileView() {
         <div class="form-group">
           <label>${t('login.password.label')}</label>
           <input type="password" id="cred-password" placeholder="${t('login.password.placeholder')}" />
+        </div>
+        <div class="form-group">
+          <label for="cred-export-password">${t('credfile.password')}</label>
+          <input type="password" id="cred-export-password" autocomplete="new-password" />
+          <p class="field-hint">${t('credfile.password.hint')}</p>
+        </div>
+        <div class="form-group">
+          <label for="cred-export-confirm">${t('credfile.password.confirm')}</label>
+          <input type="password" id="cred-export-confirm" autocomplete="new-password" />
         </div>
         <button type="button" class="btn-primary" id="generate-credfile-btn">${t('credfile.generate.full')}</button>
       </div>
@@ -5140,7 +5100,14 @@ function renderCredFileView() {
     }
 
     try {
-      const encrypted = await encryptCredentials(data);
+      const filePassword = $('#cred-export-password').value;
+      if (filePassword.length < 12 || filePassword !== $('#cred-export-confirm').value) {
+        showToast(t('credfile.password.invalid'), 'error');
+        return;
+      }
+      const encrypted = await encryptCredentials(data, filePassword);
+      $('#cred-export-password').value = '';
+      $('#cred-export-confirm').value = '';
       const blob = new Blob([encrypted], { type: 'text/plain;charset=utf-8' });
       saveAs(blob, `vault-manager-${new Date().toISOString().slice(0, 10)}.bwcred`);
       showToast(t('credfile.ok'), 'success');

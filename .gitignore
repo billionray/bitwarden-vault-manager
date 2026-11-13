@@ -17,6 +17,29 @@ dist-ssr
 .env.*
 .env.local
 
+# Local tooling and package caches
+/.tools/
+/.npm/
+/.pnpm-store/
+
+# Credential exports and local authentication files
+*.bwcred
+.npmrc
+.netrc
+.git-credentials
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+
+# Local vault exports (keep demo and test source files tracked)
+bitwarden_export*
+vaultwarden_export*
+vault_export*
+*.kdbx
+
 # Open source staging
 open-source/
 

@@ -11,6 +11,11 @@ const translations = {
   'merge.unsupported.metadata': { zh: '组织条目或含附件的条目暂不支持自动合并，已保留原条目。', en: 'Organization items and attachments cannot be auto-merged; originals retained.' },
   'merge.credentials.conflict': { zh: '用户名、密码或 TOTP 存在冲突，已保留原条目。', en: 'Conflicting usernames, passwords or TOTP secrets; originals retained.' },
   'merge.multiple.passkeys': { zh: '多个条目包含通行密钥，无法安全确认一致性，已保留原条目。', en: 'Multiple items contain passkeys; originals retained because equivalence cannot be verified safely.' },
+  'credfile.password': { zh: '文件解锁口令', en: 'File password' },
+  'credfile.password.hint': { zh: '至少 12 个字符。导入文件时需要此口令，请单独保管。', en: 'At least 12 characters. Required to import the file; store it separately.' },
+  'credfile.password.confirm': { zh: '再次输入文件口令', en: 'Confirm file password' },
+  'credfile.password.invalid': { zh: '文件口令须至少 12 个字符，且两次输入一致。', en: 'File passwords must match and contain at least 12 characters.' },
+  'credfile.legacy': { zh: '旧版文件使用公开固定密钥，已停止导入。请手动登录并重新导出受口令保护的文件。', en: 'Legacy files use a public fixed key and cannot be imported. Sign in manually and export a password-protected file.' },
   // === Login Page ===
   'login.title': { zh: '密码管理面板', en: 'Password Manager' },
   'login.subtitle': { zh: '安全连接你的保险库 · 智能去重 · 批量管理 · 健康分析', en: 'Secure vault · Smart dedup · Batch ops · Health check' },
@@ -31,7 +36,7 @@ const translations = {
   'login.btn': { zh: '登录并分析', en: 'Login & Analyze' },
   'login.demo': { zh: '🎮 点击进入演示页面', en: '🎮 Enter Demo Mode' },
   'login.security': { zh: '所有解密操作在本地浏览器完成，主密码不会发送到任何第三方服务器', en: 'All decryption happens locally in your browser. Master password never leaves your device.' },
-  'login.credfile.info': { zh: '🔐 使用加密凭证文件一键登录。登录后可在侧边栏「加密登录」生成文件。', en: '🔐 One-click login with encrypted credential file. Generate one from sidebar after login.' },
+  'login.credfile.info': { zh: '🔐 输入文件口令后导入加密凭证文件登录。登录后可在侧边栏「加密登录」生成文件。', en: '🔐 Unlock your encrypted credential file with its password. Generate one from sidebar after login.' },
   'login.credfile.drop': { zh: '将加密凭证文件拖拽到此处', en: 'Drop encrypted credential file here' },
   'login.credfile.or': { zh: '或', en: 'or' },
   'login.credfile.browse': { zh: '📂 选择文件', en: '📂 Browse' },
@@ -249,7 +254,7 @@ const translations = {
 
   // === Credfile ===
   'credfile.title': { zh: '生成加密凭证文件', en: 'Generate Encrypted Credential File' },
-  'credfile.desc': { zh: '将当前登录凭证加密保存为文件。下次可通过拖入文件一键登录，无需再输入 API Key 和密码。', en: 'Encrypt current credentials to a file. Next time, just drag the file to login instantly—no API Key or password needed.' },
+  'credfile.desc': { zh: '将当前登录凭证加密保存为文件。下次输入文件口令并导入文件，即可填充登录信息。', en: 'Encrypt current credentials to a file. Next time, enter the file password and import the file to restore your login details.' },
   'credfile.passphrase': { zh: '设置文件密码', en: 'Set file password' },
   'credfile.passphrase.placeholder': { zh: '保护你的凭证文件', en: 'Protect your credential file' },
   'credfile.generate': { zh: '🔐 生成并下载', en: '🔐 Generate & Download' },
@@ -587,11 +592,11 @@ const translations = {
 
   'credfile.login.decrypting': { zh: '正在解密凭证文件...', en: 'Decrypting credential file...' },
   'credfile.login.autologin': { zh: '凭证已解密，正在自动登录...', en: 'Credentials decrypted. Logging in automatically...' },
-  'credfile.login.invalid': { zh: '解密失败：文件损坏或不是有效的加密凭证文件', en: 'Decrypt failed: file is damaged or not a valid encrypted credential file' },
+  'credfile.login.invalid': { zh: '解密失败：文件口令错误、文件损坏或格式无效', en: 'Decrypt failed: incorrect file password, damaged file or invalid format' },
   'credfile.view.title': { zh: '🔐 生成加密登录文件', en: '🔐 Generate Encrypted Login File' },
-  'credfile.view.desc': { zh: '输入你的登录信息，点击「生成加密文件」将下载一个 AES-256 加密的 <code>.bwcred</code> 文件。<br/>下次登录时，在登录页选择「🔐 加密文件」模式，拖拽文件即可自动登录。', en: 'Enter your login details, then click "Generate encrypted file" to download an AES-256 encrypted <code>.bwcred</code> file.<br/>Next time, choose "Encrypted File" on the login page and drag the file in to log in automatically.' },
+  'credfile.view.desc': { zh: '输入你的登录信息，点击「生成加密文件」将下载一个 AES-256 加密的 <code>.bwcred</code> 文件。<br/>下次登录时，在登录页选择「🔐 加密文件」模式，输入文件解锁口令后拖拽文件即可登录。', en: 'Enter your login details, then click "Generate encrypted file" to download an AES-256 encrypted <code>.bwcred</code> file.<br/>Next time, choose "Encrypted File" on the login page enter its file password, then drag the file in to log in.' },
   'credfile.generate.full': { zh: '🔐 生成加密文件并下载', en: '🔐 Generate Encrypted File & Download' },
-  'credfile.view.security': { zh: '⚠️ 加密文件包含你的完整登录凭证，请妥善保管。仅本网站可解密。', en: '⚠️ The encrypted file contains your full login credentials. Keep it safe. Only this site can decrypt it.' },
+  'credfile.view.security': { zh: '⚠️ 加密文件包含你的完整登录凭证，请妥善保管。使用独立口令保护，导入时需要文件解锁口令。', en: '⚠️ The encrypted file contains your full login credentials. Keep it safe. A separate file password is required to decrypt it.' },
   'credfile.encrypt.fail': { zh: '❌ 加密失败', en: '❌ Encryption failed' },
 
   'api.captcha.required': { zh: '需要验证码。请改用 API Key 登录方式（推荐）。', en: 'CAPTCHA is required. Please use API Key login instead (recommended).' },

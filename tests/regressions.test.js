@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { encryptString, decryptToString } from '../src/crypto.js';
+import { encryptCredentials, decryptCredentials } from '../src/credential-file.js';
 import { analyzeCiphers, buildMergeOperations } from '../src/dedup-engine.js';
 import { buildCipherCreatePayload, buildPasskeyMergePayload } from '../src/merge-payload.js';
 
@@ -14,6 +15,19 @@ test('authenticated ciphertext requires a valid MAC and known encryption type', 
   await assert.rejects(decryptToString(ciphertext.split('|').slice(0, 2).join('|'), key));
   await assert.rejects(decryptToString(ciphertext.replace(/^2/, '9'), key));
   await assert.rejects(decryptToString(ciphertext, keys()), /HMAC/);
+});
+
+test('file encryption requires user password, randomizes exports and rejects tampering/legacy files', async () => {
+  const password = 'a distinct file passphrase', data = { password: 'synthetic-only', clientSecret: 'synthetic' };
+  const first = await encryptCredentials(data, password), second = await encryptCredentials(data, password);
+  assert.notEqual(first, second);
+  assert.notEqual(JSON.parse(first).salt, JSON.parse(second).salt);
+  const bytes = text => new TextEncoder().encode(text);
+  assert.deepEqual(await decryptCredentials(bytes(first), password), data);
+  await assert.rejects(decryptCredentials(bytes(first), 'incorrect password'));
+  await assert.rejects(decryptCredentials(bytes('legacy-file'), password), /legacy_credential_file/);
+  const file = JSON.parse(first); file.data = (file.data[0] === 'A' ? 'B' : 'A') + file.data.slice(1);
+  await assert.rejects(decryptCredentials(bytes(JSON.stringify(file)), password));
 });
 
 test('different credentials cannot become pure deletion even with stale UI flags', () => {
