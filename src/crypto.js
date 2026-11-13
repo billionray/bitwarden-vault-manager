@@ -107,6 +107,7 @@ export async function hashPassword(password, masterKey) {
  */
 export async function decryptSymmetricKey(protectedKeyStr, stretchedKey) {
   const decrypted = await decryptCipherString(protectedKeyStr, stretchedKey);
+  if (!decrypted || decrypted.length !== 64) throw new Error('Invalid symmetric key length');
   // The symmetric key is 64 bytes: first 32 = enc key, last 32 = mac key
   return {
     encKey: decrypted.slice(0, 32),
@@ -123,7 +124,15 @@ export async function decryptCipherString(cipherString, keys) {
 
   const { encType, iv, data, mac } = parseCipherString(cipherString);
 
+  if (![EncType.AesCbc256_B64, EncType.AesCbc256_HmacSha256_B64].includes(encType)) {
+    throw new Error('Unsupported encryption type');
+  }
+  if (iv.length !== 16 || !data.length || data.length % 16 !== 0) {
+    throw new Error('Invalid encrypted data');
+  }
+
   if (encType === EncType.AesCbc256_HmacSha256_B64) {
+    if (!mac || mac.length !== 32) throw new Error('Missing or invalid HMAC');
     // Verify HMAC first
     if (mac) {
       const macKeyObj = await crypto.subtle.importKey('raw', keys.macKey, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
@@ -179,6 +188,9 @@ export async function encryptString(plaintext, keys) {
  * Parse a CipherString into its components
  */
 function parseCipherString(str) {
+  if (typeof str !== 'string' || !/^[02]\.[^|]+\|[^|]+(?:\|[^|]+)?$/.test(str)) {
+    throw new Error('Invalid or unsupported CipherString');
+  }
   const dotIndex = str.indexOf('.');
   const encType = parseInt(str.substring(0, dotIndex), 10);
   const parts = str.substring(dotIndex + 1).split('|');
