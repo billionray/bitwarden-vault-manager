@@ -91,7 +91,6 @@
             </svg>
           </div>
           <h1>Bitwarden Vault Manager</h1>
-          <p class="subtitle" data-i18n="login.subtitle">安全连接你的保险库 · 智能去重 · 批量管理 · 健康分析</p>
         </div>
 
         <form id="login-form" autocomplete="off">
@@ -102,8 +101,9 @@
               <option value="https://vault.bitwarden.eu" data-i18n="login.server.eu">bitwarden.eu（欧洲）</option>
               <option value="selfhost" data-i18n="login.server.selfhost">自托管 / Vaultwarden</option>
             </select>
-            <input type="text" inputmode="url" spellcheck="false" id="selfhost-url" class="selfhost-url-input" data-i18n="login.server.selfhost.placeholder" placeholder="https://vault.example.com" autocomplete="off" hidden />
-            <p class="field-hint" data-i18n="login.server.selfhost.hint">填写 Web Vault 地址，不要包含 /api 或 /identity。</p>
+            <label class="address-label" id="server-address-label" for="selfhost-url" data-i18n="login.server.address">服务器地址</label>
+            <input type="text" inputmode="url" spellcheck="false" aria-labelledby="server-address-label" aria-describedby="server-address-hint" id="selfhost-url" class="selfhost-url-input" data-i18n="login.server.selfhost.placeholder" placeholder="https://vault.example.com" autocomplete="off" hidden />
+            <p id="server-address-hint" class="field-hint" data-i18n="login.server.selfhost.hint">填写 Web Vault 地址，不要包含 /api 或 /identity。</p>
           </div>
 
           <div class="auth-mode-toggle">
@@ -113,9 +113,9 @@
 
           <!-- API Key Mode -->
           <div id="auth-apikey" class="auth-panel active">
-            <div class="auth-info">
+            <details class="key-help"><summary data-i18n="login.key.help">在哪里获取 API 密钥？</summary>
               <p data-i18n="login.apikey.info" data-i18n-html>💡 在 <a href="https://vault.bitwarden.com" target="_blank" rel="noopener">Bitwarden 网页版</a> → <strong>设置</strong> → <strong>安全</strong> → <strong>密钥</strong> → 查看 API 密钥</p>
-            </div>
+            </details>
             <div class="form-group">
               <label for="client-id">client_id</label>
               <input type="text" id="client-id" placeholder="user.xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" />
@@ -152,7 +152,7 @@
             </div>
           </div>
 
-          <div id="login-status" class="login-status"></div>
+          <div role="status" id="login-status" class="login-status"></div>
 
           <button type="submit" id="login-btn" class="btn-primary" data-i18n="login.btn">登录并分析</button>
           <button type="button" id="demo-btn" class="btn-demo" data-i18n="login.demo">🎮 点击进入演示页面</button>

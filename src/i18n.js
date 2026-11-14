@@ -6,6 +6,8 @@
 let currentLocale = 'zh';
 
 const translations = {
+  'login.key.help': { zh: '在哪里获取 API 密钥？', en: 'Where do I find my API key?' },
+  'login.server.address': { zh: '服务器地址', en: 'Server address' },
   'merge.overlap': { zh: '条目已包含在另一合并组中，本组保留原条目。', en: 'Items overlap another merge group; originals retained.' },
   'merge.decrypt.failed': { zh: '条目数据未完整解密，已保留原条目。', en: 'Item data is not fully decrypted; originals retained.' },
   'merge.unsupported.metadata': { zh: '组织条目或含附件的条目暂不支持自动合并，已保留原条目。', en: 'Organization items and attachments cannot be auto-merged; originals retained.' },

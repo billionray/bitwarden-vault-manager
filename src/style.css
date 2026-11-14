@@ -2898,3 +2898,20 @@ body {
     font-size: 0.55rem;
   }
 }
+
+/* Compact vault entry and a consistent focus ring across the workspace. */
+.login-container { max-width: 480px; margin-block: clamp(2rem, 6vh, 5rem); }
+.login-header { display: flex; align-items: center; gap: .8rem; margin-bottom: 1.25rem; }
+.login-header .logo, .login-header h1 { margin: 0; }
+.login-header h1 { font-size: clamp(1.2rem, 4vw, 1.65rem); color: var(--text-primary); background: none; -webkit-text-fill-color: currentColor; }
+#login-form { padding: clamp(1.1rem, 4vw, 2rem); border-radius: 20px; }
+.key-help { margin-block: 0 1rem; padding: .7rem .9rem; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: .88rem; }
+.key-help summary { cursor: pointer; color: var(--text-primary); }
+.key-help p { color: var(--text-secondary); margin-block: .65rem 0; }
+.form-group:has(.selfhost-url-input[hidden]) :is(.field-hint,.address-label),
+#login-form:has(#auth-credfile.active) #login-btn { display: none; }
+:where(button, a, summary, select, input):focus-visible { outline: 2px solid var(--brand-light); outline-offset: 3px; }
+.stat-number { font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) {
+  .login-container, .content-view, .auth-panel { animation: none; }
+}

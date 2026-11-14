@@ -15,9 +15,7 @@ function installSelfHostedProxy(server) {
     }
     if (!target) return next();
     try {
-      const chunks = [];
-      for await (const chunk of req) chunks.push(chunk);
-      const body = chunks.length ? Buffer.concat(chunks) : null;
+      const body = ['GET', 'HEAD'].includes(req.method) ? null : Readable.toWeb(req);
       const result = await forwardSelfHosted(target, req.method, req.headers, body);
       res.writeHead(result.status, Object.fromEntries(result.headers));
       if (result.body) await pipeline(Readable.fromWeb(result.body), res);

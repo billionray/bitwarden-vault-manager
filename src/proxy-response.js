@@ -17,7 +17,7 @@ export async function forwardSelfHosted(target, method, headers, body) {
   };
   const error = () => new Response('{"error":"Invalid upstream response"}', { status: 502, headers: safe });
   try {
-    const upstream = await fetch(target, { method, headers: apiHeaders(headers), body, redirect: 'manual' });
+    const upstream = await fetch(target, { method, headers: apiHeaders(headers), body, ...(body instanceof ReadableStream ? { duplex: 'half' } : {}), redirect: 'manual' });
     const status = upstream.status;
     const mime = (upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
     if (status >= 300 && status < 400) {

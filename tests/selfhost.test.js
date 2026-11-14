@@ -84,3 +84,15 @@ test('deployed self-host proxy requires the configured HTTPS base and isolates b
   mime = 'text/html';
   assert.equal((await onRequest(context(base, base))).status, 502);
 });
+
+test('forwards streaming POST bodies without buffering them in the development server', async t => {
+  const { forwardSelfHosted } = await import('../src/proxy-response.js');
+  const body = new Response('sample').body;
+  t.mock.method(globalThis, 'fetch', async (target, init) => {
+    const outgoing = new Request(target, init);
+    assert.equal(await outgoing.text(), 'sample');
+    return Response.json({ ok: true });
+  });
+  const result = await forwardSelfHosted('https://vault.example/api', 'POST', {}, body);
+  assert.equal(result.status, 200);
+});
