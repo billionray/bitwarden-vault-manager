@@ -7,22 +7,22 @@
  * Quick filter definitions
  */
 export const QUICK_FILTERS = [
-  { id: 'no-url',      labelKey: 'filter.no.url',      icon: '🔗', test: c => c.type === 1 && (!c.decrypted?.uris || c.decrypted.uris.filter(Boolean).length === 0) },
-  { id: 'no-name',     labelKey: 'filter.no.name',     icon: '📝', test: c => !c.decrypted?.name || c.decrypted.name.trim() === '' },
-  { id: 'no-folder',   labelKey: 'filter.no.folder',   icon: '📂', test: c => !c.raw?.FolderId },
-  { id: 'has-passkey', labelKey: 'filter.has.passkey', icon: '🔑', test: c => (c.raw?.Login?.Fido2Credentials?.length || 0) > 0 },
-  { id: 'has-totp',    labelKey: 'filter.has.totp',    icon: '🕐', test: c => !!c.decrypted?.totp },
-  { id: 'weak-pw',     labelKey: 'filter.weak.pw',     icon: '⚠️', test: c => {
+  { id: 'no-url',      labelKey: 'filter.no.url', test: c => c.type === 1 && (!c.decrypted?.uris || c.decrypted.uris.filter(Boolean).length === 0) },
+  { id: 'no-name',     labelKey: 'filter.no.name', test: c => !c.decrypted?.name || c.decrypted.name.trim() === '' },
+  { id: 'no-folder',   labelKey: 'filter.no.folder', test: c => !c.raw?.FolderId },
+  { id: 'has-passkey', labelKey: 'filter.has.passkey', test: c => (c.raw?.Login?.Fido2Credentials?.length || 0) > 0 },
+  { id: 'has-totp',    labelKey: 'filter.has.totp', test: c => !!c.decrypted?.totp },
+  { id: 'weak-pw',     labelKey: 'filter.weak.pw', test: c => {
     const pw = c.decrypted?.password;
     if (!pw || c.type !== 1) return false;
     return pw.length < 8 || /^\d+$/.test(pw) || /^[a-zA-Z]+$/.test(pw);
   }},
-  { id: 'empty-pw',    labelKey: 'filter.empty.pw',    icon: '🚫', test: c => c.type === 1 && (!c.decrypted?.password || c.decrypted.password.trim() === '') && !(c.raw?.Login?.Fido2Credentials?.length > 0) },
-  { id: 'http-uri',    labelKey: 'filter.http.uri',    icon: '🔓', test: c => {
+  { id: 'empty-pw',    labelKey: 'filter.empty.pw', test: c => c.type === 1 && (!c.decrypted?.password || c.decrypted.password.trim() === '') && !(c.raw?.Login?.Fido2Credentials?.length > 0) },
+  { id: 'http-uri',    labelKey: 'filter.http.uri', test: c => {
     const uris = c.decrypted?.uris || [];
     return uris.some(u => u && u.startsWith('http://'));
   }},
-  { id: 'decrypt-fail', labelKey: 'filter.decrypt.fail', icon: '💀', test: c => !!c.decrypted?.error },
+  { id: 'decrypt-fail', labelKey: 'filter.decrypt.fail', test: c => !!c.decrypted?.error },
 ];
 
 /**

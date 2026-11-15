@@ -3,7 +3,7 @@ import { encryptCredentials, decryptCredentials } from './credential-file.js';
 import { BitwardenClient, normalizeServerUrl } from './bitwarden-api.js';
 import { makeMasterKey, stretchKey, decryptSymmetricKey, decryptToString, encryptString } from './crypto.js';
 import { analyzeCiphers, buildMergeOperations } from './dedup-engine.js';
-import { searchAndFilter, QUICK_FILTERS, getFilterCounts, SORT_OPTIONS } from './search-engine.js';
+import { searchAndFilter, QUICK_FILTERS, getFilterCounts } from './search-engine.js';
 import { analyzeHealth } from './health-engine.js';
 import { generateDemoData } from './demo-data.js';
 import { t, getLocale, setLocale, initLocale } from './i18n.js';
@@ -272,15 +272,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // When locale changes, refresh dynamic content
   window.addEventListener('localeChanged', () => {
     if (isDemoMode) {
-      // Re-generate demo data in new locale
-      const demo = generateDemoData(getLocale());
-      allDecryptedCiphers = demo.ciphers;
-      allDecryptedTrash = demo.trash;
-      // Rebuild folderMap from new locale folders
-      folderMap = {};
-      demo.folders.forEach(f => { folderMap[f.id] = f.name; });
-      analysisResult = analyzeCiphers(allDecryptedCiphers);
-      healthResult = analyzeHealth(allDecryptedCiphers);
       // Update demo banner text
       const banner = document.querySelector('.demo-banner');
       if (banner) {
@@ -720,26 +711,26 @@ function setupKeyboardShortcuts() {
 // ========================
 // FILTER TAGS
 // ========================
-function setupFilterTags() {
-  const container = $('#filter-tags');
-  const counts = getFilterCounts(allDecryptedCiphers);
+function renderFilterTags(folderItems) {
+  const counts = getFilterCounts(folderItems);
 
-  container.innerHTML = QUICK_FILTERS.map(f => `
-    <button class="filter-tag" data-filter="${f.id}">
+  $('#filter-tags').innerHTML = QUICK_FILTERS.map(f => `
+    <button class="filter-tag ${activeFilters.has(f.id) ? 'active' : ''}" aria-pressed="${activeFilters.has(f.id)}" data-filter="${f.id}">
       ${t(f.labelKey)}<span class="tag-count">${counts[f.id]}</span>
     </button>
   `).join('');
+}
 
+function setupFilterTags() {
+  const container = $('#filter-tags');
   container.addEventListener('click', (e) => {
     const tag = e.target.closest('.filter-tag');
     if (!tag) return;
     const filterId = tag.dataset.filter;
     if (activeFilters.has(filterId)) {
       activeFilters.delete(filterId);
-      tag.classList.remove('active');
     } else {
       activeFilters.add(filterId);
-      tag.classList.add('active');
     }
     switchView(currentView);
   });
@@ -754,6 +745,18 @@ function setupFilterTags() {
 // ========================
 // BATCH OPERATIONS
 // ========================
+function moveItemsToTrash(ids) {
+  const deletedAt = new Date().toISOString();
+  for (const item of allDecryptedCiphers) {
+    if (ids.has(item.id)) {
+      item.raw.DeletedDate = deletedAt;
+      allDecryptedTrash.push(item);
+    }
+  }
+  allDecryptedCiphers = allDecryptedCiphers.filter(item => !ids.has(item.id));
+  deadUrlItems = deadUrlItems.filter(item => !ids.has(item.id));
+}
+
 function setupBatchOps() {
   $('#batch-cancel-btn').addEventListener('click', () => {
     selectedItems.clear();
@@ -772,8 +775,7 @@ function setupBatchOps() {
         const count = ids.length;
 
         // ── Phase 1: 乐观热更新 ── 立即从 UI 移除 ──
-        allDecryptedCiphers = allDecryptedCiphers.filter(c => !deleteSet.has(c.id));
-        deadUrlItems = deadUrlItems.filter(c => !deleteSet.has(c.id));
+        moveItemsToTrash(deleteSet);
         analysisResult = analyzeCiphers(allDecryptedCiphers);
         healthResult = analyzeHealth(allDecryptedCiphers);
         selectedItems.clear();
@@ -809,7 +811,17 @@ function setupBatchOps() {
   });
 }
 
+function updateSelectAll(container) {
+  const toggle = container?.querySelector('input[id$="-select-all-cb"]');
+  if (!toggle) return;
+  const boxes = container.querySelectorAll('.item-cb, .item-select-cb');
+  const count = Array.from(boxes).filter(box => box.checked).length;
+  toggle.checked = count > 0 && count === boxes.length;
+  toggle.indeterminate = count > 0 && count < boxes.length;
+}
+
 function updateBatchBar() {
+  updateSelectAll($('.content-view.active'));
   const bar = $('#batch-bar');
   if (selectedItems.size > 0) {
     bar.style.display = 'flex';
@@ -854,7 +866,7 @@ function renderFolderList() {
 
   container.innerHTML = folderList.map(f => `
     <div class="folder-item ${selectedFolderId === f.id && currentView === 'folder' ? 'active' : ''}" data-folder-id="${f.id}">
-      <span class="folder-name">${escHtml(f.name)}</span>
+      <button type="button" class="entry-name folder-name">${escHtml(f.name)}</button>
       <span class="folder-count">${folderCounts[f.id] || 0}</span>
       <div class="folder-actions">
         <button class="folder-action-btn rename" data-folder-id="${f.id}" title="${t('folder.rename')}">${t('folder.rename')}</button>
@@ -988,7 +1000,7 @@ function closeFolderModal() {
   $('#folder-modal').style.display = 'none';
 }
 
-function showMoveFolderModal() {
+function showMoveFolderModal(ids = Array.from(selectedItems)) {
   const modal = $('#move-folder-modal');
   const list = $('#move-folder-list');
 
@@ -1013,7 +1025,6 @@ function showMoveFolderModal() {
 
       modal.style.display = 'none';
       try {
-        const ids = Array.from(selectedItems);
         const idsSet = new Set(ids);
 
         // Optimistic UI update — instantly update folder in memory
@@ -1055,32 +1066,22 @@ function renderFolderView() {
   }
 
   const folderName = folderMap[selectedFolderId] || t('folder.unknown');
-  let items = allDecryptedCiphers.filter(c => c.raw?.FolderId === selectedFolderId);
-
-  // Apply search and filters to folder items
-  if (searchQuery.trim()) {
-    const q = searchQuery.toLowerCase().trim();
-    items = items.filter(c => {
-      const name = (c.decrypted?.name || '').toLowerCase();
-      const username = (c.decrypted?.username || '').toLowerCase();
-      const uris = (c.decrypted?.uris || []).join(' ').toLowerCase();
-      return name.includes(q) || username.includes(q) || uris.includes(q);
-    });
-  }
-
+  const folderItems = allDecryptedCiphers.filter(c => c.raw?.FolderId === selectedFolderId);
+  renderFilterTags(folderItems);
+  const items = searchAndFilter(folderItems, { query: searchQuery, activeFilters, sortId });
 
   container.innerHTML = `
     <header class="entry-heading"><h1>${escHtml(folderName)} <small>${items.length}</small></h1></header>
     <div class="section-header">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.82rem;color:var(--text-secondary)">
-        <input type="checkbox" id="folder-select-all-cb" class="item-checkbox" /> ${t('item.selectall')}
+        <input type="checkbox" id="folder-select-all-cb" class="item-checkbox" ${items.length ? '' : 'disabled'} /> ${t('item.selectall')}
       </label>
     </div>
     ${items.map(c => `
       <div class="vault-item ${selectedItems.has(c.id) ? 'selected' : ''}" data-id="${c.id}">
-        <input type="checkbox" class="item-checkbox item-select-cb" data-id="${c.id}" ${selectedItems.has(c.id) ? 'checked' : ''}/>
+        <input type="checkbox" class="item-checkbox item-select-cb" aria-label="${escAttr(c.decrypted?.name || t('item.untitled'))}" data-id="${c.id}" ${selectedItems.has(c.id) ? 'checked' : ''}/>
         <div class="item-info">
-          <div class="item-name">${escHtml(c.decrypted?.name || t('item.untitled'))}</div>
+          <button type="button" class="entry-name item-name">${escHtml(c.decrypted?.name || t('item.untitled'))}</button>
           <div class="item-meta">
             ${c.decrypted?.username ? `<span>${escHtml(c.decrypted.username)}</span>` : ''}
             ${(c.decrypted?.uris?.filter(Boolean) || []).length > 0 ? `<span>${linkUri(c.decrypted.uris[0])}</span>` : ''}
@@ -1095,9 +1096,9 @@ function renderFolderView() {
   `;
 
   // Event delegation for clicks
-  container.addEventListener('click', (e) => {
+  container.onclick = (e) => {
     const item = e.target.closest('.vault-item');
-    if (!item) return;
+    if (!item || e.target.closest('a')) return;
 
     if (e.target.classList.contains('item-select-cb')) {
       const id = e.target.dataset.id;
@@ -1114,7 +1115,7 @@ function renderFolderView() {
 
     const cipher = allDecryptedCiphers.find(c => c.id === item.dataset.id);
     if (cipher) openDetailDrawer(cipher);
-  });
+  };
 
   // Select all for folder view
   $('#folder-select-all-cb')?.addEventListener('change', (e) => {
@@ -1126,6 +1127,7 @@ function renderFolderView() {
     updateBatchBar();
     renderFolderView();
   });
+  updateSelectAll(container);
 }
 
 // ========================
@@ -2418,8 +2420,7 @@ async function deleteCurrentCipher(cipher) {
       const deleteId = cipher.id;
 
       // ── Phase 1: 乐观热更新 ──
-      allDecryptedCiphers = allDecryptedCiphers.filter(c => c.id !== deleteId);
-      deadUrlItems = deadUrlItems.filter(c => c.id !== deleteId);
+      moveItemsToTrash(new Set([deleteId]));
       analysisResult = analyzeCiphers(allDecryptedCiphers);
       healthResult = analyzeHealth(allDecryptedCiphers);
       updateSidebarBadges();
@@ -2828,6 +2829,7 @@ function setupLogout() {
     vaultData = null;
     allDecryptedCiphers = [];
     allDecryptedTrash = [];
+    if (isDemoMode) history.replaceState(null, '', location.pathname + location.search);
     location.reload();
   });
 }
@@ -3067,8 +3069,7 @@ function renderDuplicatesView() {
           const deleteSet = new Set(ids);
 
           // ── Phase 1: 乐观热更新 ──
-          allDecryptedCiphers = allDecryptedCiphers.filter(c => !deleteSet.has(c.id));
-          deadUrlItems = deadUrlItems.filter(c => !deleteSet.has(c.id));
+          moveItemsToTrash(deleteSet);
           analysisResult = analyzeCiphers(allDecryptedCiphers);
           healthResult = analyzeHealth(allDecryptedCiphers);
           updateSidebarBadges();
@@ -3095,40 +3096,13 @@ function renderDuplicatesView() {
   $('#dup-batch-move-btn')?.addEventListener('click', () => {
     const ids = getDupSelectedItemIds();
     if (ids.length === 0) { showToast(t('dup.select.move.first'), 'warning'); return; }
-    // Temporarily set selectedItems so showMoveFolderModal works
-    const savedSelection = new Set(selectedItems);
-    selectedItems.clear();
-    ids.forEach(id => selectedItems.add(id));
-    showMoveFolderModal();
-    // After modal closes, restore selection
-    const origClose = $('#move-folder-cancel').onclick;
-    const restoreAndRefresh = () => {
-      selectedItems.clear();
-      savedSelection.forEach(id => selectedItems.add(id));
-      // Refresh duplicates view after move
-      setTimeout(() => {
-        analysisResult = analyzeCiphers(allDecryptedCiphers);
-        healthResult = analyzeHealth(allDecryptedCiphers);
-        updateSidebarBadges();
-        renderDuplicatesView();
-      }, 500);
-    };
-    // Patch the move folder option clicks to also refresh duplicates
-    $('#move-folder-list').querySelectorAll('.move-folder-option').forEach(btn => {
-      const origHandler = btn.onclick;
-      btn.addEventListener('click', restoreAndRefresh);
-    });
-    $('#move-folder-cancel').onclick = () => {
-      $('#move-folder-modal').style.display = 'none';
-      selectedItems.clear();
-      savedSelection.forEach(id => selectedItems.add(id));
-    };
+    showMoveFolderModal(ids);
   });
 
   // Click-to-edit: delegate clicks on dup items to open detail drawer
   container.onclick = (e) => {
     // Skip if clicking on controls (radio, checkbox, label, button)
-    if (e.target.matches('input, label, button, select') || e.target.closest('label, button')) return;
+    if (e.target.closest('input, label, a, select, button:not(.entry-name)')) return;
 
     // Find the closest dup-item or site-dup-item
     const itemEl = e.target.closest('.dup-item, .site-dup-item');
@@ -3172,7 +3146,7 @@ function renderExactDupItem(item, gi, ii, isFirst) {
         <span class="radio-label">${isFirst ? `${t('dup.keep')}` : `${t('dup.remove')}`}</span>
       </label>
       <div class="item-details">
-        <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
+        <button type="button" class="entry-name item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</button>
         <div class="item-meta">
           <span>${escHtml(item.decrypted?.username || '—')}</span>
           <span>${uris.length > 0 ? linkUri(uris[0]) : '—'}</span>
@@ -3199,7 +3173,7 @@ function renderSiteDupItem(item, gi) {
         <input type="checkbox" class="site-item-cb" data-gi="${gi}" data-id="${item.id}">
       </label>
       <div class="item-details">
-        <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
+        <button type="button" class="entry-name item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</button>
         <div class="item-meta">
           <span>${escHtml(item.decrypted?.username || '—')}</span>
           <span>${uris.length > 0 ? linkUri(uris[0]) : '—'}</span>
@@ -3290,7 +3264,7 @@ function renderCorruptedView() {
       <div class="orphan-item selectable" data-id="${item.id}">
         <input type="checkbox" class="item-cb" aria-label="${escAttr(item.decrypted?.name || t('item.untitled'))}" data-id="${item.id}" ${checked} />
         <div class="item-info">
-          <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
+          <button type="button" class="entry-name item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</button>
           <div class="item-meta">
             ${reasonHtml}
             <span>${escHtml(item.decrypted?.username || '—')}</span>
@@ -3325,7 +3299,7 @@ function renderCorruptedView() {
   // Click row to open detail
   container.querySelectorAll('.orphan-item').forEach(el => {
     el.addEventListener('click', (e) => {
-      if (e.target.closest('.item-cb')) return;
+      if (e.target.closest('.item-cb, a')) return;
       const cipher = allDecryptedCiphers.find(c => c.id === el.dataset.id);
       if (cipher) openDetailDrawer(cipher);
     });
@@ -3624,7 +3598,7 @@ function renderDeadUrlsView() {
       <div class="orphan-item selectable" data-id="${item.id}">
         <input type="checkbox" class="item-cb" aria-label="${escAttr(item.decrypted?.name || t('item.untitled'))}" data-id="${item.id}" ${checked} />
         <div class="item-info">
-          <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
+          <button type="button" class="entry-name item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</button>
           <div class="item-meta">
             <span class="orphan-tag" style="color:var(--danger)">${t('deadurls.unreachable')}</span>
             <span>${escHtml(item.decrypted?.username || '—')}</span>
@@ -3659,7 +3633,7 @@ function renderDeadUrlsView() {
   // Click row to open detail
   container.querySelectorAll('.orphan-item').forEach(el => {
     el.addEventListener('click', (e) => {
-      if (e.target.closest('.item-cb')) return;
+      if (e.target.closest('.item-cb, a')) return;
       if (e.target.closest('.uri-link')) return; // Don't open detail when clicking URI link
       const cipher = allDecryptedCiphers.find(c => c.id === el.dataset.id);
       if (cipher) openDetailDrawer(cipher);
@@ -3724,7 +3698,7 @@ function renderTypeFilteredView(viewName, typeId) {
         return dec?.notes ? dec.notes.substring(0, 60) + (dec.notes.length > 60 ? '…' : '') : '—';
       case 5: { // SSH Key
         const ssh = dec?.sshKey || {};
-        return ssh.keyFingerprint || ssh.publicKey?.substring(0, 40) + '…' || '—';
+        return ssh.keyFingerprint || (ssh.publicKey ? ssh.publicKey.substring(0, 40) + '…' : '—');
       }
       default:
         return '—';
@@ -3819,6 +3793,7 @@ function renderTypeFilteredView(viewName, typeId) {
         btn.classList.toggle('active', btn.dataset.letter === activeLetter);
       });
     };
+    listScroll?.abort();
     listScroll = new AbortController();
     mainContent.addEventListener('scroll', onScroll, { passive: true, signal: listScroll.signal });
     requestAnimationFrame(onScroll);
@@ -3906,7 +3881,7 @@ function renderFavoritesView() {
       <div class="orphan-item selectable" data-id="${item.id}">
         <input type="checkbox" class="item-cb" aria-label="${escAttr(item.decrypted?.name || t('item.untitled'))}" data-id="${item.id}" ${checked} />
         <div class="item-info">
-          <div class="item-name">${name}</div>
+          <button type="button" class="entry-name item-name">${name}</button>
           <div class="item-meta">
             <span>${escHtml(subtitle)}</span>
             <span>${folder}</span>
@@ -3939,7 +3914,7 @@ function renderFavoritesView() {
   // Click row to open detail
   container.querySelectorAll('.orphan-item').forEach(el => {
     el.addEventListener('click', (e) => {
-      if (e.target.closest('.item-cb')) return;
+      if (e.target.closest('.item-cb, a')) return;
       const cipher = allDecryptedCiphers.find(c => c.id === el.dataset.id);
       if (cipher) openDetailDrawer(cipher);
     });
@@ -3988,7 +3963,7 @@ function renderNoFolderView() {
       <div class="orphan-item selectable" data-id="${item.id}">
         <input type="checkbox" class="item-cb" aria-label="${escAttr(item.decrypted?.name || t('item.untitled'))}" data-id="${item.id}" ${checked} />
         <div class="item-info">
-          <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
+          <button type="button" class="entry-name item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</button>
           <div class="item-meta">
             <span>${escHtml(item.decrypted?.username || '—')}</span>
             ${uri ? `<span>${linkUri(uri)}</span>` : `<span class="orphan-tag">${t('filter.no.url')}</span>`}
@@ -4049,6 +4024,7 @@ function renderNoFolderView() {
         btn.classList.toggle('active', btn.dataset.letter === activeLetter);
       });
     };
+    listScroll?.abort();
     listScroll = new AbortController();
     mainContent.addEventListener('scroll', onScroll, { passive: true, signal: listScroll.signal });
     requestAnimationFrame(onScroll);
@@ -4077,7 +4053,7 @@ function renderNoFolderView() {
   // Click row to open detail (but not on checkbox)
   container.querySelectorAll('.orphan-item').forEach(el => {
     el.addEventListener('click', (e) => {
-      if (e.target.closest('.item-cb')) return;
+      if (e.target.closest('.item-cb, a')) return;
       const cipher = allDecryptedCiphers.find(c => c.id === el.dataset.id);
       if (cipher) openDetailDrawer(cipher);
     });
@@ -4204,7 +4180,7 @@ function renderTrashView() {
         <div class="orphan-item selectable" data-id="${item.id}">
           <input type="checkbox" class="item-cb" aria-label="${escAttr(item.decrypted?.name || t('item.untitled'))}" data-id="${item.id}" ${checked} />
           <div class="item-info">
-            <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
+            <button type="button" class="entry-name item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</button>
             <div class="item-meta">
               <span>${escHtml(item.decrypted?.username || '—')}</span>
               ${uri ? `<span>${linkUri(uri)}</span>` : `<span class="orphan-tag">${t('health.nourl')}</span>`}
@@ -4237,8 +4213,7 @@ function renderTrashView() {
   // Click row to open detail
   container.querySelectorAll('.orphan-item').forEach(el => {
     el.addEventListener('click', (e) => {
-      if (e.target.closest('.item-cb')) return;
-      if (e.target.closest('a')) return;
+      if (e.target.closest('.item-cb, a')) return;
       const cipher = allDecryptedTrash.find(c => c.id === el.dataset.id);
       if (cipher) openDetailDrawer(cipher);
     });
@@ -4252,11 +4227,7 @@ function renderTrashView() {
 function updateTrashBatchBar() {
   const bar = $('#trash-batch-bar');
   if (!bar) return;
-  const boxes = $$('#view-trash .item-cb');
-  const selected = Array.from(boxes).filter(box => box.checked).length;
-  const selectAll = $('#trash-select-all-cb');
-  selectAll.checked = selected === boxes.length;
-  selectAll.indeterminate = selected > 0 && selected < boxes.length;
+  updateSelectAll($('#view-trash'));
   if (selectedItems.size > 0) {
     bar.style.display = 'flex';
     $('#trash-batch-count').textContent = t('trash.selected.count', selectedItems.size);
@@ -4779,8 +4750,7 @@ async function handleSingleMerge(groups, gi, btnEl) {
 
     // Optimistic UI update
     const deleteSet = new Set(safeToDelete);
-    allDecryptedCiphers = allDecryptedCiphers.filter(c => !deleteSet.has(c.id));
-    deadUrlItems = deadUrlItems.filter(c => !deleteSet.has(c.id));
+    moveItemsToTrash(deleteSet);
     analysisResult = analyzeCiphers(allDecryptedCiphers);
     healthResult = analyzeHealth(allDecryptedCiphers);
     updateSidebarBadges();

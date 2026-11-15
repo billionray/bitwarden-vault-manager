@@ -616,10 +616,10 @@ body {
   display: none;
   gap: 2px;
 }
-.folder-item:hover .folder-actions {
+.folder-item:is(:hover, :focus-within) .folder-actions {
   display: flex;
 }
-.folder-item:hover .folder-count {
+.folder-item:is(:hover, :focus-within) .folder-count {
   display: none;
 }
 
