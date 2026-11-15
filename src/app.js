@@ -556,6 +556,19 @@ function updateSidebarBadges() {
 // SIDEBAR NAVIGATION
 // ========================
 function setupSidebarNav() {
+  const menu = $('#library-menu');
+  menu.onclick = () => {
+    const opened = $('#sidebar').classList.toggle('open');
+    menu.setAttribute('aria-expanded', String(opened));
+    if (opened) $('#sidebar .nav-item.active')?.focus();
+  };
+  $('#sidebar').onkeydown = e => {
+    if (e.key === 'Escape' && $('#sidebar').classList.contains('open')) {
+      $('#sidebar').classList.remove('open');
+      menu.setAttribute('aria-expanded', 'false');
+      menu.focus();
+    }
+  };
   $$('.nav-item[data-view]').forEach(item => {
     item.addEventListener('click', () => {
       switchView(item.dataset.view);
@@ -565,12 +578,18 @@ function setupSidebarNav() {
 
 let listScroll;
 function switchView(view) {
+  if ($('#sidebar').classList.contains('open')) {
+    $('#sidebar').classList.remove('open');
+    $('#library-menu').setAttribute('aria-expanded', 'false');
+    $('#library-menu').focus();
+  }
   currentView = view;
 
   listScroll?.abort();
   // Update nav active states
-  $$('.nav-item[data-view]').forEach(n => n.classList.remove('active'));
+  $$('.nav-item[data-view]').forEach(n => { n.classList.remove('active'); n.removeAttribute('aria-current'); });
   $(`.nav-item[data-view="${view}"]`)?.classList.add('active');
+  $(`.nav-item[data-view="${view}"]`)?.setAttribute('aria-current', 'page');
 
   // Also highlight folder item if folder view
   $$('.folder-item').forEach(f => f.classList.remove('active'));

@@ -2931,7 +2931,7 @@ button.overview-metric:hover, .audit-list button:hover { background:var(--bg-inp
 .audit-list button { display:grid; grid-template-columns:auto 1fr auto auto; align-items:center; gap:.85rem; padding:.75rem; border-bottom:1px solid var(--border); }
 .audit-list button:last-child { border-bottom:0; }
 .audit-list strong, .nav-badge { font-variant-numeric:tabular-nums; }
-.nav-item.active { box-shadow:inset 3px 0 var(--brand-light); }
+
 @media(max-width:720px) {
   .overview-metrics {grid-template-columns:repeat(2,minmax(0,1fr));}
   .overview-audit {grid-template-columns:1fr; gap:1rem;}
@@ -2944,7 +2944,16 @@ button.overview-metric:hover, .audit-list button:hover { background:var(--bg-inp
 .sidebar-main-nav,.sidebar-folder-section { overflow:visible; max-height:none; min-height:0; }
 .nav-caption { margin:1rem .8rem .35rem; color:var(--text-muted); font-size:.71rem; font-weight:650; letter-spacing:.045em; }
 .sidebar .nav-item { padding:.48rem .75rem; border-radius:9px; }
-.sidebar .nav-icon { font-size:.9rem; width:1.4rem; }
+.sidebar .nav-icon { width:18px; height:18px; flex:none; fill:none; stroke:currentColor; stroke-width:1.65; stroke-linecap:round; stroke-linejoin:round; }
+.sidebar .nav-item.active { background:var(--bg-card-hover); color:var(--text-primary); }
+.sidebar .nav-item.active .nav-icon { color:var(--brand-light); }
+.library-menu { display:none; }
+@media(max-width:768px) {
+  .library-menu { display:grid; place-items:center; flex:none; width:36px; height:36px; border:1px solid var(--border); border-radius:9px; background:var(--bg-card); color:var(--text-primary); }
+  .sidebar:not(.open) { visibility:hidden; }
+  .sidebar.open { width:min(260px,75vw); box-shadow:10px 0 35px #0003; }
+  .sidebar.open ~ .main-content .library-menu { position:fixed; left:min(260px,75vw); top:12px; }
+}
 .nav-badge:empty { display:none; }
 .entry-heading { display:flex; gap:1rem; align-items:center; justify-content:space-between; margin-bottom:1rem; }
 .entry-heading h1 { display:flex; gap:.65rem; align-items:center; margin:0; font-size:clamp(1.55rem,3vw,2.15rem); letter-spacing:-.035em; }
