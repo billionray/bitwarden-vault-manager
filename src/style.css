@@ -2983,3 +2983,19 @@ button.overview-metric:hover, .audit-list button:hover { background:var(--bg-inp
 .detail-actions,.edit-actions { background:var(--bg-secondary); position:sticky; bottom:0; padding:.7rem 0; border-top:1px solid var(--border); }
 .detail-edit-btn,.edit-save-btn { box-shadow:none; }
 @media(prefers-reduced-motion:reduce) { .detail-drawer { animation:none; } }
+
+/* Review screens use the same inventory rows and count alignment as the library. */
+#view-duplicates .section-header { flex-wrap:wrap; gap:.5rem 1rem; }
+#view-duplicates .section-title { font-size:1rem; }
+#view-duplicates .dup-group, #view-health .health-issue-card { border:1px solid var(--border); border-radius:14px; background:var(--bg-card); box-shadow:none; }
+#view-duplicates .dup-group-header { background:transparent; border-bottom:1px solid var(--border-subtle); gap:.65rem; }
+#view-duplicates .dup-item { border-radius:8px; }
+#view-duplicates .group-title { overflow-wrap:anywhere; }
+#view-duplicates .single-merge-btn { margin-inline-start:auto; box-shadow:none; }
+.review-score { color:var(--text-secondary); font-size:.85rem; white-space:nowrap; }
+.review-score strong { color:var(--text-primary); font-size:1.1rem; }
+#view-health .severity-indicator { width:8px; height:8px; border-radius:50%; }
+.health-card-info { display:flex; justify-content:space-between; align-items:center; gap:.75rem; }
+.health-card-count { margin:0; font-variant-numeric:tabular-nums; }
+button.health-sub-item { width:100%; border:0; border-bottom:1px solid var(--border-subtle); background:none; color:var(--text-primary); font-family:inherit; text-align:start; cursor:pointer; }
+button.health-sub-item:hover,.health-card-header:hover { background:var(--bg-input); }

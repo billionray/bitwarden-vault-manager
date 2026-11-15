@@ -301,9 +301,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Try to restore previous session (avoid re-login)
-  if (['#demo', '#demo-logins', '#demo-detail', '#demo-edit'].includes(location.hash)) {
+  if (['#demo', '#demo-logins', '#demo-detail', '#demo-edit', '#demo-duplicates', '#demo-health'].includes(location.hash)) {
     enterDemoMode();
-    if (location.hash !== '#demo') switchView('type-login');
+    if (location.hash !== '#demo') switchView(({ '#demo-duplicates': 'duplicates', '#demo-health': 'health' })[location.hash] || 'type-login');
     const sample = allDecryptedCiphers.find(c => c.type === 1 && c.decrypted?.password);
     if (sample && location.hash === '#demo-detail') openDetailDrawer(sample);
     if (sample && location.hash === '#demo-edit') openEditDrawer(sample);
@@ -2936,7 +2936,7 @@ function renderDuplicatesView() {
 
   if (filteredExactGroups.length === 0 && filteredSameGroups.length === 0) {
     container.innerHTML = searchQuery.trim()
-      ? `<div class="empty-state">🔍 ${t('dup.empty')}</div>`
+      ? `<div class="empty-state">${t('dup.empty')}</div>`
       : `<div class="empty-state">${t('dup.empty')}</div>`;
     return;
   }
@@ -2949,13 +2949,14 @@ function renderDuplicatesView() {
     : `${exactGroups.length}`;
 
   container.innerHTML = `
+    <header class="entry-heading"><h1>${t('nav.duplicates')} <small>${filteredExactGroups.length + filteredSameGroups.length}</small></h1></header>
     ${filteredExactGroups.length > 0 ? `
       <div class="section-header">
         <span class="section-title">${t('dup.exact')} · ${exactCountLabel} ${t('dup.groups')}</span>
         <div class="section-header-actions">
           <button class="section-action-btn" id="dup-select-all">${t('dup.select.all')}</button>
           <button class="section-action-btn" id="dup-deselect-all">${t('dup.deselect.all')}</button>
-          <span class="section-hint">${t('dup.exact.hint')}</span>
+
         </div>
       </div>
       ${filteredExactGroups.map((group, gi) => {
@@ -2965,16 +2966,15 @@ function renderDuplicatesView() {
           <div class="dup-group-header">
             <label class="group-checkbox">
               <input type="checkbox" class="group-select" data-gi="${globalIdx}" data-filtered="true" checked>
-              <span class="badge badge-exact">${t('dup.exact')}</span>
               ${group.pureDelete
                 ? `<span class="badge badge-pure-delete">${t('dup.candelete')}</span>`
                 : `<span class="badge badge-needs-merge">${t('dup.needmerge')}</span>`}
-              <span class="group-title">${escHtml(group.label)}</span>
+              <span class="group-title">${escHtml(group.label.slice(group.label.indexOf(': ') + 2))}</span>
               <span class="group-count">${group.items.length} ${t('dup.items')}</span>
             </label>
             <button class="single-merge-btn" data-gi="${globalIdx}">${t('dup.merge.single')}</button>
             ${group.diffFields && group.diffFields.length > 0
-              ? `<div class="diff-tags">${group.diffFields.map(d => `<span class="diff-tag">⚠️ ${escHtml(d)}</span>`).join('')}</div>`
+              ? `<div class="diff-tags">${group.diffFields.map(d => `<span class="diff-tag">${escHtml(d)}</span>`).join('')}</div>`
               : ''}
           </div>
           <div class="dup-items">
@@ -2996,18 +2996,17 @@ function renderDuplicatesView() {
         return `
         <div class="dup-group site-group" data-group-index="${globalIdx}">
           <div class="dup-group-header">
-            <span class="badge badge-site">${t('dup.samesite.badge')}</span>
             ${group.diffFields && group.diffFields.length > 0
-              ? group.diffFields.map(d => `<span class="diff-tag">⚠️ ${escHtml(d)}</span>`).join('')
+              ? group.diffFields.map(d => `<span class="diff-tag">${escHtml(d)}</span>`).join('')
               : ''}
-            <span class="group-title">${escHtml(group.label)}</span>
+            <span class="group-title">${escHtml(group.label.slice(group.label.indexOf(': ') + 2))}</span>
             <span class="group-count">${group.items.length} ${t('dup.items')} · ${byUser.length} ${t('dup.accounts')}</span>
             <button class="single-merge-btn site-merge-btn" data-gi="${globalIdx}">${t('dup.merge.single')}</button>
           </div>
           <div class="dup-items site-items">
             ${byUser.map((userGroup, ui) => `
               ${ui > 0 ? '<div class="username-divider"></div>' : ''}
-              ${userGroup.items.length > 1 ? `<div class="username-section-label">👤 ${escHtml(userGroup.username || '—')} · ${userGroup.items.length} ${t('dup.entries')}</div>` : ''}
+              ${userGroup.items.length > 1 ? `<div class="username-section-label">${escHtml(userGroup.username || '—')} · ${userGroup.items.length} ${t('dup.entries')}</div>` : ''}
               ${userGroup.items.map(item => renderSiteDupItem(item, globalIdx)).join('')}
             `).join('')}
           </div>
@@ -3018,8 +3017,8 @@ function renderDuplicatesView() {
     <div class="merge-bar" id="merge-bar">
       <span id="merge-count"></span>
       <div class="merge-bar-actions">
-        <button id="dup-batch-move-btn" class="merge-bar-btn" title="${t('folder.move')}">📁 ${t('folder.move')}</button>
-        <button id="dup-batch-delete-btn" class="merge-bar-btn merge-bar-btn-danger" title="${t('batch.delete.title')}">🗑️ ${t('detail.btn.delete')}</button>
+        <button id="dup-batch-move-btn" class="merge-bar-btn" title="${t('folder.move')}">${t('folder.move')}</button>
+        <button id="dup-batch-delete-btn" class="merge-bar-btn merge-bar-btn-danger" title="${t('batch.delete.title')}">${t('detail.btn.delete')}</button>
         <button id="merge-btn" class="merge-btn">${t('dup.merge.btn')}</button>
       </div>
     </div>
@@ -3030,6 +3029,12 @@ function renderDuplicatesView() {
     radio.addEventListener('change', () => {
       const gi = parseInt(radio.dataset.gi);
       groups[gi].selectedKeepIndex = parseInt(radio.dataset.ii);
+      radio.closest('.dup-items').querySelectorAll('.dup-item').forEach(row => {
+        const kept = row.querySelector('input').checked;
+        row.classList.toggle('keep-item', kept);
+        row.classList.toggle('remove-item', !kept);
+        row.querySelector('.radio-label').textContent = t(kept ? 'dup.keep' : 'dup.remove');
+      });
     });
   });
   // Set defaults
@@ -3086,7 +3091,7 @@ function renderDuplicatesView() {
           healthResult = analyzeHealth(allDecryptedCiphers);
           updateSidebarBadges();
           renderDuplicatesView();
-          showToast(`✅ ${ids.length} ${t('dup.items')} ${t('detail.delete.trash')}`, 'success');
+          showToast(`${ids.length} ${t('dup.items')} ${t('detail.delete.trash')}`, 'success');
 
           // ── Phase 2: 后台服务端删除 ──
           try {
@@ -3139,7 +3144,7 @@ function renderDuplicatesView() {
   });
 
   // Click-to-edit: delegate clicks on dup items to open detail drawer
-  container.addEventListener('click', (e) => {
+  container.onclick = (e) => {
     // Skip if clicking on controls (radio, checkbox, label, button)
     if (e.target.matches('input, label, button, select') || e.target.closest('label, button')) return;
 
@@ -3152,7 +3157,7 @@ function renderDuplicatesView() {
 
     const cipher = allDecryptedCiphers.find(c => c.id === itemId);
     if (cipher) openDetailDrawer(cipher);
-  });
+  };
 }
 
 /**
@@ -3182,16 +3187,16 @@ function renderExactDupItem(item, gi, ii, isFirst) {
     <div class="dup-item ${isFirst ? 'keep-item' : 'remove-item'}" data-id="${item.id}">
       <label class="item-radio">
         <input type="radio" name="keep-${gi}" data-gi="${gi}" data-ii="${ii}" ${isFirst ? 'checked' : ''}>
-        <span class="radio-label">${isFirst ? `✅ ${t('dup.keep')}` : `🗑️ ${t('dup.remove')}`}</span>
+        <span class="radio-label">${isFirst ? `${t('dup.keep')}` : `${t('dup.remove')}`}</span>
       </label>
       <div class="item-details">
         <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
         <div class="item-meta">
-          <span>👤 ${escHtml(item.decrypted?.username || '—')}</span>
-          <span>🔗 ${uris.length > 0 ? linkUri(uris[0]) : '—'}</span>
-          ${passkeys > 0 ? `<span class="has-passkey">🔑 ${passkeys} ${t('detail.passkey')}</span>` : ''}
-          ${item.decrypted?.totp ? '<span class="has-totp">🕐 TOTP</span>' : ''}
-          <span>📁 ${escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'))}</span>
+          <span>${escHtml(item.decrypted?.username || '—')}</span>
+          <span>${uris.length > 0 ? linkUri(uris[0]) : '—'}</span>
+          ${passkeys > 0 ? `<span class="has-passkey">${passkeys} ${t('detail.passkey')}</span>` : ''}
+          ${item.decrypted?.totp ? '<span class="has-totp">TOTP</span>' : ''}
+          <span>${escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'))}</span>
         </div>
       </div>
     </div>
@@ -3214,12 +3219,12 @@ function renderSiteDupItem(item, gi) {
       <div class="item-details">
         <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
         <div class="item-meta">
-          <span>👤 ${escHtml(item.decrypted?.username || '—')}</span>
-          <span>🔗 ${uris.length > 0 ? linkUri(uris[0]) : '—'}</span>
-          ${passkeys > 0 ? `<span class="has-passkey">🔑 ${passkeys} ${t('detail.passkey')}</span>` : ''}
-          ${item.decrypted?.totp ? '<span class="has-totp">🕐 TOTP</span>' : ''}
-          ${fields > 0 ? `<span class="has-fields">📝 ${fields} ${t('detail.section.fields')}</span>` : ''}
-          <span>📁 ${escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'))}</span>
+          <span>${escHtml(item.decrypted?.username || '—')}</span>
+          <span>${uris.length > 0 ? linkUri(uris[0]) : '—'}</span>
+          ${passkeys > 0 ? `<span class="has-passkey">${passkeys} ${t('detail.passkey')}</span>` : ''}
+          ${item.decrypted?.totp ? '<span class="has-totp">TOTP</span>' : ''}
+          ${fields > 0 ? `<span class="has-fields">${fields} ${t('detail.section.fields')}</span>` : ''}
+          <span>${escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'))}</span>
         </div>
       </div>
     </div>
@@ -4139,23 +4144,23 @@ function renderHealthView() {
   }
 
   // Filter health issues' sub-items by search query
-  let filteredIssues = health.issues;
+  let filteredIssues = health.issues.map(issue => ({ ...issue, items: issue.items ?? issue.groups?.flat() ?? [] }));
   if (searchQuery.trim()) {
-    filteredIssues = health.issues.map(issue => {
+    filteredIssues = filteredIssues.map(issue => {
       const filtered = (issue.items || []).filter(matchesSearch);
       return filtered.length > 0 ? { ...issue, items: filtered, count: filtered.length } : null;
     }).filter(Boolean);
   }
 
   if (filteredIssues.length === 0) {
-    container.innerHTML = `<div class="empty-state">🔍 ${t('health.empty')}</div>`;
+    container.innerHTML = `<div class="empty-state">${t('review.no.matches')}</div>`;
     return;
   }
 
   container.innerHTML = `
-    <div class="section-header">
-      <span class="section-title">🛡️ ${t('health.title')} · ${t('health.score.label')} ${health.score}/100</span>
-    </div>
+    <header class="entry-heading"><h1>${t('nav.health')}</h1>
+      <span class="review-score">${t('health.score.label')} <strong>${health.score}</strong>/100</span>
+    </header>
     ${filteredIssues.map((issue, i) => `
       <div class="health-issue-card" data-issue-id="${issue.id}" data-index="${i}">
         <button type="button" class="health-card-header" aria-expanded="false">
@@ -4168,10 +4173,10 @@ function renderHealthView() {
         </button>
         <div class="health-card-items">
           ${(issue.items || []).slice(0, 50).map(c => `
-            <div class="health-sub-item" data-id="${c.id}" style="cursor:pointer">
+            <button type="button" class="health-sub-item" data-id="${c.id}">
               <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(c.decrypted?.name || t('item.untitled'))}</span>
               <span style="color:var(--text-muted);flex-shrink:0">${escHtml(c.decrypted?.username || '')}</span>
-            </div>
+            </button>
           `).join('')}
           ${(issue.items || []).length > 50 ? `<div class="health-sub-item" style="color:var(--text-muted)">${t('health.more')} (${issue.items.length - 50})</div>` : ''}
         </div>
