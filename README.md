@@ -1,133 +1,45 @@
-# 🔐 Bitwarden Vault Manager
+# Bitwarden Vault Manager
 
-一个功能强大的 Bitwarden 密码库管理面板，支持去重合并、健康分析、URL 失效检测、批量操作等高级功能。
+在浏览器中管理 Bitwarden 或 Vaultwarden 密码库。使用 API Key 登录，主密码用于在浏览器本地解密条目。登录页的「体验演示」可用示例数据试用，无需账号。[原项目在线演示](https://bitwarden.xuebz.com/)
 
-🌐 **在线演示**: [bitwarden.xuebz.com](https://bitwarden.xuebz.com/)（点击「演示模式」免登录体验）
+## 密码库管理
 
-**所有加密解密均在浏览器本地完成，服务端仅做 API 代理转发，不接触任何明文数据。**
+- 按类型或文件夹浏览、搜索和编辑条目。支持批量移动、移入回收站、恢复和永久删除。
+- 检查重复登录项并合并。用户名、密码或 TOTP 冲突、条目解密失败、含附件、属于组织或多个条目含通行密钥时，会跳过自动合并。
+- 在「健康分析」中查看弱密码、空密码、重复使用的密码和 HTTP 地址。在「失效 URL」中手动开始检测，浏览器会连接登录条目对应的域名。
 
-## ✨ 功能特性
+## 本地运行
 
-### 📊 总览仪表板
-- 密码库概览统计
-- 重复项/弱密码/空密码一目了然
-
-### 🔗 URL 失效检测
-- **一次性全量扫描**：登录后自动检测所有条目的 URL 连通性
-- **多策略探测**：fetch (no-cors) + `<img>` favicon 双策略，智能识别 Cloudflare 等 Bot 防护
-- **大厂白名单**：内置 ~200 个主流域名（Google、Apple、Microsoft、Amazon、Meta、Netflix 等），自动跳过，支持父域名匹配
-- **实时进度条**：渐变动画进度条 + 域名计数，检测过程可视
-- **ID 去重**：同一条目绝不重复展示
-- **批量处理**：支持全选、批量删除、批量移动
-
-### 🔍 智能去重
-- **完全重复检测**：URI + 用户名 + 密码三重匹配
-- **同站重复检测**：相同站点不同凭据（支持 Android/iOS App URI 同站识别）
-- **深度字段比较**：名称、TOTP、备注、自定义字段、通行密钥、收藏状态
-- **AB 两路合并策略**：
-  - **Path A (纯删除)**：100% 完全一致 → 保留一个，删除其余
-  - **Path B (Create-Then-Delete)**：有差异 → 合并数据后新建条目 → 验证成功后删除所有原条目（含通行密钥条目：保留 per-cipher Key + Fido2Credentials）
-- **智能标题选择**：中文优先，最短优先，淘汰标题保存到备注
-- **URL 保留**：合并保留完整地址、端口、路径及匹配规则
-- **安全保障**：全部软删除（30天可恢复），Path B 新建失败时原条目不删除
-- **冲突保护**：用户名、密码或 TOTP 冲突、解密失败、多个条目含通行密钥、组织条目或附件会阻止自动合并，保留原条目
-
-### 🏥 健康分析
-- 弱密码检测
-- 空密码检测（排除通行密钥条目）
-- 密码重复使用检测
-- 过期密码检测（>1年）
-- 不安全 URI 检测（http://）
-
-### 📝 条目管理
-- 查看/编辑所有字段（含自定义字段解密）
-- 批量移动文件夹
-- 批量删除
-- 文件夹创建/重命名/删除
-- 高级搜索和过滤
-- **按类型浏览**：支付卡 💳 / 身份 🪪 / 安全笔记 📝 / SSH 密钥 🔑 独立侧栏入口
-- **已损坏条目**：自动识别解密失败的条目
-
-### ⚡ 乐观热更新
-- **即时 UI 反馈**：所有操作（删除、编辑、移动、文件夹管理）瞬间更新界面
-- **后台静默同步**：服务端操作在后台异步执行
-- **失败自动回滚**：服务端失败时 Toast 通知 + 自动 resync 恢复数据
-- **永久删除例外**：不可逆操作保持悲观模式（先确认服务端成功再更新 UI）
-
-### 🗑️ 回收站
-- 恢复已删除条目到指定文件夹
-- 永久删除
-- 批量操作
-
-### 🔒 安全特性
-- 支持密码登录 + API Key 登录
-- 支持 PBKDF2 + Argon2 密钥派生
-- 全端加密/解密（浏览器本地执行）
-- 会话持久化（sessionStorage）
-- 凭证文件使用独立口令、随机盐和 AES-GCM 加密；导入时必须输入文件口令（至少 12 个字符）
-- 旧版 `.bwcred` 文件使用公开固定密钥，已停止导入；请手动登录后重新导出新版文件，旧文件应视为包含明文凭证
-
-## 🚀 快速开始
-
-### 开发模式
+使用 Node.js 20.19+（20.x）或 22.12 及以上版本。
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-### 自托管 / Vaultwarden
+运行回归测试用 `npm test`，生成生产构建用 `npm run build`。测试使用模拟请求和示例凭证。
 
-登录页「服务器」选择「自托管 / Vaultwarden」，填写 Web Vault 根地址，例如：
+## 连接自托管密码库
 
-```text
-https://vault.example.com
-```
+在登录页选择「自托管 / Vaultwarden」，填写 Web Vault 根地址，例如 `https://vault.example.com/vault`。保留部署子路径，省略 `/api` 和 `/identity`。
 
-不要填写 `/api` 或 `/identity`，应用会自动转发到对应接口。
+本地开发和预览代理可连接本机或内网服务，请在可信网络中运行。服务器使用内部 CA 时，将 `NODE_EXTRA_CA_CERTS` 指向 CA 证书文件，再启动开发或预览服务。
 
-- 本地开发模式会通过 Vite 代理转发自托管请求，可用于内网或本机可访问的 Vaultwarden/Bitwarden 服务。
-- Cloudflare Pages 默认关闭自托管转发。管理员在 Pages 环境变量 `SELF_HOSTED_BASES` 中填写允许的完整 HTTPS 根地址（包含端口和部署子路径；多个地址用英文逗号分隔），然后重新部署。例如：`https://vault.example.com/vault`。仅配置你控制且信任的域名。官方 US/EU 服务无需此配置。
-- 开发和预览代理支持本机和内网地址；请只在可信网络运行。使用内部 CA 时通过 `NODE_EXTRA_CA_CERTS` 配置信任的 CA。
+## 部署到 Cloudflare Pages
 
-### 回归测试
-
-```bash
-npm test
-npm run build
-```
-
-测试使用合成凭证及模拟请求，不连接真实密码库。
-
-### 部署到 Cloudflare Pages
+官方 US 和 EU 服务可直接使用。要连接自托管服务，在 Pages 项目环境变量 `SELF_HOSTED_BASES` 中填写你信任的完整 HTTPS 根地址，包含端口和部署子路径。多个地址用英文逗号分隔。保存后重新部署：
 
 ```bash
 npm run build
 wrangler pages deploy dist --project-name bitwarden-vault-manager --branch main
 ```
 
-项目使用 Cloudflare Pages Functions 代理 Bitwarden 官方 API（US + EU），无需配置任何环境变量。
+## 加密登录文件
 
-## 🏗️ 技术架构
+「加密登录」可导出 `.bwcred` 文件，其中含有 API 凭证、邮箱、服务器地址和主密码。请设置至少 12 个字符的独立文件口令。下次登录时选择「加密文件」，用该口令解锁。
 
-- **前端**：纯 HTML + CSS + JavaScript（无框架依赖）
-- **构建**：Vite
-- **加密**：Web Crypto API + argon2-browser
-- **部署**：Cloudflare Pages（静态站点 + Pages Functions 代理）
+旧版文件使用公开固定密钥，应按明文凭证保管。请用 API Key 登录后重新导出。
 
-### 项目结构
+## 许可证
 
-```
-src/
-├── app.js              # 主应用逻辑（含 URL 检测、乐观热更新）
-├── bitwarden-api.js    # Bitwarden API 客户端
-├── crypto.js           # 加密/解密引擎
-├── dedup-engine.js     # 去重检测与合并引擎
-├── health-engine.js    # 健康分析引擎
-├── search-engine.js    # 搜索与过滤引擎
-└── style.css           # 样式
-```
-
-## 📄 License
-
-MIT License - 详见 [LICENSE](LICENSE) 文件
+[MIT](LICENSE)
