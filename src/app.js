@@ -301,9 +301,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Try to restore previous session (avoid re-login)
-  if (['#demo', '#demo-logins'].includes(location.hash)) {
+  if (['#demo', '#demo-logins', '#demo-detail', '#demo-edit'].includes(location.hash)) {
     enterDemoMode();
-    if (location.hash === '#demo-logins') switchView('type-login');
+    if (location.hash !== '#demo') switchView('type-login');
+    const sample = allDecryptedCiphers.find(c => c.type === 1 && c.decrypted?.password);
+    if (sample && location.hash === '#demo-detail') openDetailDrawer(sample);
+    if (sample && location.hash === '#demo-edit') openEditDrawer(sample);
   }
   else await tryRestoreSession();
 });
@@ -1156,6 +1159,13 @@ function openDetailDrawer(cipher) {
   const typeLabels = { 1: t('detail.type.login'), 2: t('detail.type.note'), 3: t('detail.type.card'), 4: t('detail.type.identity'), 5: t('detail.type.ssh') };
   const d = cipher.decrypted;
 
+  const actions = [];
+  const action = (kind, value) => {
+    const index = actions.push({ kind, value }) - 1;
+    return `<button type="button" class="${kind === 'show' ? 'pw-toggle' : 'copy-btn'}" data-drawer-action="${index}" ${kind === 'show' ? 'aria-pressed="false"' : ''}>${t('drawer.' + kind)}</button>`;
+  };
+  const detailField = (label, value, copyable) => `<div class="detail-field"><div class="detail-label">${escHtml(label)}</div>
+    <div class="detail-value"><span>${escHtml(value)}</span>${copyable ? action('copy', value) : ''}</div></div>`;
   let html = '';
 
   // ── Section: Item Info ──
@@ -1178,8 +1188,8 @@ function openDetailDrawer(cipher) {
         <div class="detail-label">${t('detail.password')}</div>
         <div class="detail-value">
           <span class="detail-pw" id="pw-display">${'•'.repeat(Math.min(pw.length, 20))}</span>
-          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(pw)}')">👁</button>
-          <button class="copy-btn" onclick="copyText('${escAttr(pw)}', this)">📋</button>
+          ${action('show', pw)}
+          ${action('copy', pw)}
         </div>
       </div>`;
     }
@@ -1189,8 +1199,8 @@ function openDetailDrawer(cipher) {
         <div class="detail-label">${t('detail.totp.key')}</div>
         <div class="detail-value">
           <span class="detail-pw">${'•'.repeat(12)}</span>
-          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(d.totp)}')">👁</button>
-          <button class="copy-btn" onclick="copyText('${escAttr(d.totp)}', this)">📋</button>
+          ${action('show', d.totp)}
+          ${action('copy', d.totp)}
         </div>
       </div>`;
     }
@@ -1203,7 +1213,7 @@ function openDetailDrawer(cipher) {
     const passkeys = cipher.raw?.Login?.Fido2Credentials || [];
     if (passkeys.length > 0) {
       html += `<div class="detail-field"><div class="detail-label">${t('detail.passkey')}</div>
-        <div class="detail-value"><span class="has-passkey">🔑 ${passkeys.length}${t('detail.passkey.count')}</span></div></div>`;
+        <div class="detail-value"><span class="has-passkey">${passkeys.length}${t('detail.passkey.count')}</span></div></div>`;
     }
     html += '</div>';
   }
@@ -1215,7 +1225,7 @@ function openDetailDrawer(cipher) {
     uris.forEach((u, idx) => {
       html += `<div class="detail-field"><div class="detail-label">${t('detail.uri')} ${uris.length > 1 ? idx + 1 : ''}</div>
         <div class="detail-value">${escHtml(u)}
-          <button class="copy-btn" onclick="copyText('${escAttr(u)}', this)">📋</button>
+          ${action('copy', u)}
         </div></div>`;
     });
     html += '</div>';
@@ -1230,8 +1240,8 @@ function openDetailDrawer(cipher) {
       html += `<div class="detail-field"><div class="detail-label">${t('detail.card.number')}</div>
         <div class="detail-value">
           <span class="detail-pw">${'•'.repeat(12)}</span>
-          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(d.card.number)}')">👁</button>
-          <button class="copy-btn" onclick="copyText('${escAttr(d.card.number)}', this)">📋</button>
+          ${action('show', d.card.number)}
+          ${action('copy', d.card.number)}
         </div></div>`;
     }
     if (d.card.expMonth || d.card.expYear) {
@@ -1241,8 +1251,8 @@ function openDetailDrawer(cipher) {
       html += `<div class="detail-field"><div class="detail-label">${t('detail.card.cvv')}</div>
         <div class="detail-value">
           <span class="detail-pw">•••</span>
-          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(d.card.code)}')">👁</button>
-          <button class="copy-btn" onclick="copyText('${escAttr(d.card.code)}', this)">📋</button>
+          ${action('show', d.card.code)}
+          ${action('copy', d.card.code)}
         </div></div>`;
     }
     html += '</div>';
@@ -1278,8 +1288,8 @@ function openDetailDrawer(cipher) {
       html += `<div class="detail-field"><div class="detail-label">${t('detail.ssh.private')}</div>
         <div class="detail-value">
           <span class="detail-pw">${'•'.repeat(20)}</span>
-          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(ssh.privateKey)}')">👁</button>
-          <button class="copy-btn" onclick="copyText('${escAttr(ssh.privateKey)}', this)">📋</button>
+          ${action('show', ssh.privateKey)}
+          ${action('copy', ssh.privateKey)}
         </div></div>`;
     }
     html += '</div>';
@@ -1293,8 +1303,8 @@ function openDetailDrawer(cipher) {
         html += `<div class="detail-field"><div class="detail-label">${escHtml(f.name || t('detail.field.noname'))}</div>
           <div class="detail-value">
             <span class="detail-pw">${'•'.repeat(8)}</span>
-            <button class="pw-toggle" onclick="togglePw(this, '${escAttr(f.value || '')}')">👁</button>
-            <button class="copy-btn" onclick="copyText('${escAttr(f.value || '')}', this)">📋</button>
+            ${action('show', f.value || '')}
+            ${action('copy', f.value || '')}
           </div></div>`;
       } else if (f.type === 2) { // boolean
         html += detailField(f.name || t('detail.field.noname'), f.value === 'true' ? t('detail.field.yes') : t('detail.field.no'), false);
@@ -1307,7 +1317,7 @@ function openDetailDrawer(cipher) {
 
   // ── Section: Password History ──
   if (d.passwordHistory && d.passwordHistory.length > 0) {
-    html += `<div class="detail-section"><div class="detail-section-title">🕐 ${t('detail.password.history')} (${d.passwordHistory.length})</div>`;
+    html += `<div class="detail-section"><div class="detail-section-title">${t('detail.password.history')} (${d.passwordHistory.length})</div>`;
     d.passwordHistory.forEach((ph, idx) => {
       const pw = ph.password || '';
       const date = ph.lastUsedDate ? new Date(ph.lastUsedDate).toLocaleString(getLocale() === 'zh' ? 'zh-CN' : 'en-US') : '';
@@ -1315,8 +1325,8 @@ function openDetailDrawer(cipher) {
         <div class="detail-label">${date || `#${idx + 1}`}</div>
         <div class="detail-value">
           <span class="detail-pw">${'•'.repeat(Math.min(pw.length, 16))}</span>
-          <button class="pw-toggle" onclick="togglePw(this, '${escAttr(pw)}')">👁</button>
-          <button class="copy-btn" onclick="copyText('${escAttr(pw)}', this)">📋</button>
+          ${action('show', pw)}
+          ${action('copy', pw)}
         </div>
       </div>`;
     });
@@ -1338,11 +1348,11 @@ function openDetailDrawer(cipher) {
   }
 
   // ── Section: Metadata ──
-  html += `<div class="detail-section detail-meta-section">
+  html += `<details class="detail-section detail-meta-section"><summary>${t('drawer.metadata')}</summary>
     ${detailField(t('detail.date.modified'), new Date(cipher.raw?.RevisionDate).toLocaleString(getLocale() === 'zh' ? 'zh-CN' : 'en-US'), false)}
     ${d.creationDate ? detailField(t('detail.date.created'), new Date(d.creationDate).toLocaleString(getLocale() === 'zh' ? 'zh-CN' : 'en-US'), false) : ''}
     ${detailField('ID', cipher.id, true)}
-  </div>`;
+  </details>`;
 
   // ── Edit + Delete Buttons ──
   html += `<div class="detail-actions">
@@ -1360,6 +1370,23 @@ function openDetailDrawer(cipher) {
   }
 
   body.innerHTML = html;
+  body.querySelectorAll('[data-drawer-action]').forEach(btn => {
+    const { kind, value } = actions[Number(btn.dataset.drawerAction)];
+    btn.onclick = async () => {
+      if (kind === 'show') {
+        const shown = btn.getAttribute('aria-pressed') === 'true';
+        btn.previousElementSibling.textContent = shown ? '••••••••' : value;
+        btn.setAttribute('aria-pressed', String(!shown));
+        btn.textContent = t(shown ? 'drawer.show' : 'drawer.hide');
+      } else {
+        try {
+          await navigator.clipboard.writeText(value);
+          btn.textContent = t('drawer.copied');
+          setTimeout(() => { btn.textContent = t('drawer.copy'); }, 1500);
+        } catch { showToast(t('drawer.copy.fail'), 'error'); }
+      }
+    };
+  });
 
   // Wire up edit button
   $('#detail-edit-btn')?.addEventListener('click', () => {
@@ -1532,35 +1559,6 @@ function closeDetailDrawer() {
   $('#detail-overlay').style.display = 'none';
 }
 
-function detailField(label, value, copyable) {
-  return `<div class="detail-field"><div class="detail-label">${label}</div>
-    <div class="detail-value">${escHtml(value)}${copyable ? `<button class="copy-btn" onclick="copyText('${escAttr(value)}', this)">📋</button>` : ''}</div></div>`;
-}
-
-// Global functions for inline handlers
-window.togglePw = (btn, pw) => {
-  const span = btn.previousElementSibling;
-  if (span.dataset.visible === 'true') {
-    span.textContent = '•'.repeat(Math.min(pw.length, 20));
-    span.dataset.visible = 'false';
-    btn.textContent = '👁';
-  } else {
-    span.textContent = pw;
-    span.dataset.visible = 'true';
-    btn.textContent = '🙈';
-  }
-};
-
-window.copyText = async (text, btn) => {
-  try {
-    await navigator.clipboard.writeText(text);
-    btn.classList.add('copied');
-    btn.textContent = '✅';
-    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '📋'; }, 1500);
-  } catch { /* ignore */ }
-};
-
-// ========================
 // EDIT DRAWER
 // ========================
 function openEditDrawer(cipher) {
@@ -1585,11 +1583,11 @@ function openEditDrawer(cipher) {
   html += `<div class="edit-section">
     <div class="edit-section-title">${t('edit.section.info')}</div>
     <div class="edit-field">
-      <label>${t('edit.label.name')}</label>
+      <label for="edit-name">${t('edit.label.name')}</label>
       <input type="text" id="edit-name" value="${escAttr(d.name || '')}">
     </div>
     <div class="edit-field">
-      <label>${t('edit.label.folder')}</label>
+      <label for="edit-folder">${t('edit.label.folder')}</label>
       <select id="edit-folder">
         <option value="">${t('edit.folder.none')}</option>
         ${folderOptions}
@@ -1602,15 +1600,15 @@ function openEditDrawer(cipher) {
     html += `<div class="edit-section">
       <div class="edit-section-title">${t('edit.section.login')}</div>
       <div class="edit-field">
-        <label>${t('edit.label.user')}</label>
+        <label for="edit-username">${t('edit.label.user')}</label>
         <input type="text" id="edit-username" value="${escAttr(d.username || '')}">
       </div>
       <div class="edit-field">
-        <label>${t('edit.label.pw')}</label>
+        <label for="edit-password">${t('edit.label.pw')}</label>
         <input type="password" id="edit-password" value="${escAttr(d.password || '')}">
       </div>
       <div class="edit-field">
-        <label>${t('detail.totp.key')}</label>
+        <label for="edit-totp">${t('detail.totp.key')}</label>
         <input type="text" id="edit-totp" value="${escAttr(d.totp || '')}" placeholder="otpauth:// or key">
       </div>
     </div>`;
@@ -1636,29 +1634,29 @@ function openEditDrawer(cipher) {
     html += `<div class="edit-section">
       <div class="edit-section-title">${t('edit.section.card')}</div>
       <div class="edit-field">
-        <label>${t('edit.card.holder')}</label>
+        <label for="edit-card-cardholderName">${t('edit.card.holder')}</label>
         <input type="text" id="edit-card-cardholderName" value="${escAttr(card.cardholderName || '')}">
       </div>
       <div class="edit-field">
-        <label>${t('edit.card.number')}</label>
+        <label for="edit-card-number">${t('edit.card.number')}</label>
         <input type="text" id="edit-card-number" value="${escAttr(card.number || '')}" placeholder="1234 5678 9012 3456">
       </div>
       <div class="edit-field" style="display:flex;gap:12px">
         <div style="flex:1">
-          <label>${t('edit.card.exp.month')}</label>
+          <label for="edit-card-expMonth">${t('edit.card.exp.month')}</label>
           <input type="text" id="edit-card-expMonth" value="${escAttr(card.expMonth || '')}" placeholder="MM">
         </div>
         <div style="flex:1">
-          <label>${t('edit.card.exp.year')}</label>
+          <label for="edit-card-expYear">${t('edit.card.exp.year')}</label>
           <input type="text" id="edit-card-expYear" value="${escAttr(card.expYear || '')}" placeholder="YYYY">
         </div>
       </div>
       <div class="edit-field">
-        <label>${t('edit.card.cvv')}</label>
+        <label for="edit-card-code">${t('edit.card.cvv')}</label>
         <input type="password" id="edit-card-code" value="${escAttr(card.code || '')}">
       </div>
       <div class="edit-field">
-        <label>${t('edit.card.brand')}</label>
+        <label for="edit-card-brand">${t('edit.card.brand')}</label>
         <select id="edit-card-brand">${brandOptions}</select>
       </div>
     </div>`;
@@ -1675,47 +1673,47 @@ function openEditDrawer(cipher) {
     html += `<div class="edit-section">
       <div class="edit-section-title">${t('edit.section.identity')}</div>
       <div class="edit-field">
-        <label>${t('edit.id.title')}</label>
+        <label for="edit-id-title">${t('edit.id.title')}</label>
         <select id="edit-id-title">${titleOptions}</select>
       </div>
       <div class="edit-field" style="display:flex;gap:12px">
-        <div style="flex:1"><label>${t('edit.id.first')}</label><input type="text" id="edit-id-firstName" value="${escAttr(id.firstName || '')}"></div>
-        <div style="flex:1"><label>${t('edit.id.middle')}</label><input type="text" id="edit-id-middleName" value="${escAttr(id.middleName || '')}"></div>
-        <div style="flex:1"><label>${t('edit.id.last')}</label><input type="text" id="edit-id-lastName" value="${escAttr(id.lastName || '')}"></div>
+        <div style="flex:1"><label for="edit-id-firstName">${t('edit.id.first')}</label><input type="text" id="edit-id-firstName" value="${escAttr(id.firstName || '')}"></div>
+        <div style="flex:1"><label for="edit-id-middleName">${t('edit.id.middle')}</label><input type="text" id="edit-id-middleName" value="${escAttr(id.middleName || '')}"></div>
+        <div style="flex:1"><label for="edit-id-lastName">${t('edit.id.last')}</label><input type="text" id="edit-id-lastName" value="${escAttr(id.lastName || '')}"></div>
       </div>
       <div class="edit-field">
-        <label>${t('edit.id.username')}</label>
+        <label for="edit-id-username">${t('edit.id.username')}</label>
         <input type="text" id="edit-id-username" value="${escAttr(id.username || '')}">
       </div>
       <div class="edit-field">
-        <label>${t('edit.id.company')}</label>
+        <label for="edit-id-company">${t('edit.id.company')}</label>
         <input type="text" id="edit-id-company" value="${escAttr(id.company || '')}">
       </div>
       <div class="edit-field" style="display:flex;gap:12px">
-        <div style="flex:1"><label>${t('edit.id.email')}</label><input type="email" id="edit-id-email" value="${escAttr(id.email || '')}"></div>
-        <div style="flex:1"><label>${t('edit.id.phone')}</label><input type="tel" id="edit-id-phone" value="${escAttr(id.phone || '')}"></div>
+        <div style="flex:1"><label for="edit-id-email">${t('edit.id.email')}</label><input type="email" id="edit-id-email" value="${escAttr(id.email || '')}"></div>
+        <div style="flex:1"><label for="edit-id-phone">${t('edit.id.phone')}</label><input type="tel" id="edit-id-phone" value="${escAttr(id.phone || '')}"></div>
       </div>
       <div class="edit-field" style="display:flex;gap:12px">
-        <div style="flex:1"><label>${t('edit.id.ssn')}</label><input type="text" id="edit-id-ssn" value="${escAttr(id.ssn || '')}"></div>
-        <div style="flex:1"><label>${t('edit.id.passport')}</label><input type="text" id="edit-id-passportNumber" value="${escAttr(id.passportNumber || '')}"></div>
+        <div style="flex:1"><label for="edit-id-ssn">${t('edit.id.ssn')}</label><input type="text" id="edit-id-ssn" value="${escAttr(id.ssn || '')}"></div>
+        <div style="flex:1"><label for="edit-id-passportNumber">${t('edit.id.passport')}</label><input type="text" id="edit-id-passportNumber" value="${escAttr(id.passportNumber || '')}"></div>
       </div>
       <div class="edit-field">
-        <label>${t('edit.id.license')}</label>
+        <label for="edit-id-licenseNumber">${t('edit.id.license')}</label>
         <input type="text" id="edit-id-licenseNumber" value="${escAttr(id.licenseNumber || '')}">
       </div>
     </div>
     <div class="edit-section">
       <div class="edit-section-title">${t('edit.section.address')}</div>
-      <div class="edit-field"><label>${t('edit.id.address1')}</label><input type="text" id="edit-id-address1" value="${escAttr(id.address1 || '')}"></div>
-      <div class="edit-field"><label>${t('edit.id.address2')}</label><input type="text" id="edit-id-address2" value="${escAttr(id.address2 || '')}"></div>
-      <div class="edit-field"><label>${t('edit.id.address3')}</label><input type="text" id="edit-id-address3" value="${escAttr(id.address3 || '')}"></div>
+      <div class="edit-field"><label for="edit-id-address1">${t('edit.id.address1')}</label><input type="text" id="edit-id-address1" value="${escAttr(id.address1 || '')}"></div>
+      <div class="edit-field"><label for="edit-id-address2">${t('edit.id.address2')}</label><input type="text" id="edit-id-address2" value="${escAttr(id.address2 || '')}"></div>
+      <div class="edit-field"><label for="edit-id-address3">${t('edit.id.address3')}</label><input type="text" id="edit-id-address3" value="${escAttr(id.address3 || '')}"></div>
       <div class="edit-field" style="display:flex;gap:12px">
-        <div style="flex:1"><label>${t('edit.id.city')}</label><input type="text" id="edit-id-city" value="${escAttr(id.city || '')}"></div>
-        <div style="flex:1"><label>${t('edit.id.state')}</label><input type="text" id="edit-id-state" value="${escAttr(id.state || '')}"></div>
+        <div style="flex:1"><label for="edit-id-city">${t('edit.id.city')}</label><input type="text" id="edit-id-city" value="${escAttr(id.city || '')}"></div>
+        <div style="flex:1"><label for="edit-id-state">${t('edit.id.state')}</label><input type="text" id="edit-id-state" value="${escAttr(id.state || '')}"></div>
       </div>
       <div class="edit-field" style="display:flex;gap:12px">
-        <div style="flex:1"><label>${t('edit.id.postal')}</label><input type="text" id="edit-id-postalCode" value="${escAttr(id.postalCode || '')}"></div>
-        <div style="flex:1"><label>${t('edit.id.country')}</label><input type="text" id="edit-id-country" value="${escAttr(id.country || '')}"></div>
+        <div style="flex:1"><label for="edit-id-postalCode">${t('edit.id.postal')}</label><input type="text" id="edit-id-postalCode" value="${escAttr(id.postalCode || '')}"></div>
+        <div style="flex:1"><label for="edit-id-country">${t('edit.id.country')}</label><input type="text" id="edit-id-country" value="${escAttr(id.country || '')}"></div>
       </div>
     </div>`;
   }
@@ -1726,15 +1724,15 @@ function openEditDrawer(cipher) {
     html += `<div class="edit-section">
       <div class="edit-section-title">${t('edit.section.ssh')}</div>
       <div class="edit-field">
-        <label>${t('detail.ssh.public')}</label>
+        <label for="edit-ssh-publicKey">${t('detail.ssh.public')}</label>
         <textarea id="edit-ssh-publicKey" rows="3" style="font-family:monospace;font-size:0.82rem">${escHtml(ssh.publicKey || '')}</textarea>
       </div>
       <div class="edit-field">
-        <label>${t('detail.ssh.private')}</label>
+        <label for="edit-ssh-privateKey">${t('detail.ssh.private')}</label>
         <textarea id="edit-ssh-privateKey" rows="5" style="font-family:monospace;font-size:0.82rem">${escHtml(ssh.privateKey || '')}</textarea>
       </div>
       <div class="edit-field">
-        <label>${t('detail.ssh.fingerprint')}</label>
+        <label for="edit-ssh-keyFingerprint">${t('detail.ssh.fingerprint')}</label>
         <input type="text" id="edit-ssh-keyFingerprint" value="${escAttr(ssh.keyFingerprint || '')}" style="font-family:monospace">
       </div>
     </div>`;
@@ -1744,7 +1742,7 @@ function openEditDrawer(cipher) {
   html += `<div class="edit-section">
     <div class="edit-section-title">${t('detail.section.extra')}</div>
     <div class="edit-field">
-      <label>${t('edit.section.notes')}</label>
+      <label for="edit-notes">${t('edit.section.notes')}</label>
       <textarea id="edit-notes">${escHtml(d.notes || '')}</textarea>
     </div>
     <div class="edit-field" style="display:flex;align-items:center;gap:8px">
@@ -1796,7 +1794,7 @@ function openEditDrawer(cipher) {
   if (passkeys.length > 0) {
     html += `<div class="edit-section">
       <div class="edit-section-title">${t('detail.passkey')}</div>
-      <div class="detail-field"><div class="detail-value"><span class="has-passkey">🔑 ${passkeys.length}${t('detail.passkey.count')} ${t('edit.passkey.readonly')}</span></div></div>
+      <div class="detail-field"><div class="detail-value"><span class="has-passkey">${passkeys.length}${t('detail.passkey.count')} ${t('edit.passkey.readonly')}</span></div></div>
     </div>`;
   }
 
@@ -1836,22 +1834,22 @@ function openEditDrawer(cipher) {
   function wireFieldTypeChange(row) {
     const sel = row.querySelector('.edit-field-type');
     sel?.addEventListener('change', () => {
-      const t = parseInt(sel.value);
+      const fieldType = Number(sel.value);
       const wrap = row.querySelector('.cf-value-action');
       const oldVal = wrap.querySelector('.edit-field-value');
       const removeBtn = wrap.querySelector('.field-remove-btn');
       let newEl;
-      if (t === 2) {
+      if (fieldType === 2) {
         const label = document.createElement('label');
         label.className = 'cf-checkbox-wrap';
         label.innerHTML = `<input type="checkbox" class="edit-field-value" data-field-type="2"><span>${t('edit.field.enabled')}</span>`;
         newEl = label;
       } else {
         newEl = document.createElement('input');
-        newEl.type = t === 1 ? 'password' : 'text';
+        newEl.type = fieldType === 1 ? 'password' : 'text';
         newEl.className = 'edit-field-value';
-        newEl.placeholder = t === 3 ? t('edit.field.placeholder.linked') : t('edit.field.placeholder.value');
-        newEl.dataset.fieldType = String(t);
+        newEl.placeholder = fieldType === 3 ? t('edit.field.placeholder.linked') : t('edit.field.placeholder.value');
+        newEl.dataset.fieldType = String(fieldType);
       }
       oldVal?.remove();
       // Also remove old checkbox wrap if exists
@@ -4875,7 +4873,7 @@ function linkUri(uri) {
 
 function escAttr(str) {
   if (!str) return '';
-  return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;');
 }
 
 // ========================
