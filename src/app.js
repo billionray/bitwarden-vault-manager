@@ -301,7 +301,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Try to restore previous session (avoid re-login)
-  if (location.hash === '#demo') enterDemoMode();
+  if (['#demo', '#demo-logins'].includes(location.hash)) {
+    enterDemoMode();
+    if (location.hash === '#demo-logins') switchView('type-login');
+  }
   else await tryRestoreSession();
 });
 
@@ -560,9 +563,11 @@ function setupSidebarNav() {
   });
 }
 
+let listScroll;
 function switchView(view) {
   currentView = view;
 
+  listScroll?.abort();
   // Update nav active states
   $$('.nav-item[data-view]').forEach(n => n.classList.remove('active'));
   $(`.nav-item[data-view="${view}"]`)?.classList.add('active');
@@ -3684,9 +3689,10 @@ function renderDeadUrlsView() {
 // RENDER: TYPE-FILTERED VIEW (Card, Identity, Note, SSH Key)
 // ========================
 function renderTypeFilteredView(viewName, typeId) {
+  listScroll?.abort();
   const container = $(`#view-${viewName}`);
   const items = allDecryptedCiphers.filter(c => (c.raw?.Type ?? c.raw?.type) === typeId);
-  const title = typeTitle(typeId);
+  const title = typeName(typeId);
   const name = typeName(typeId);
 
   if (items.length === 0) {
@@ -3718,9 +3724,9 @@ function renderTypeFilteredView(viewName, typeId) {
         const user = dec?.username || '';
         const uri = dec?.uris?.filter(Boolean)?.[0] || '';
         const parts = [];
-        if (user) parts.push(`👤 ${escHtml(user)}`);
-        if (uri) parts.push(`🔗 ${linkUri(uri)}`);
-        return parts.join('  ') || '—';
+        if (user) parts.push(`${escHtml(user)}`);
+        if (uri) parts.push(`${linkUri(uri)}`);
+        return parts.join(' · ') || '—';
       }
       case 3: { // Card
         const brand = dec?.card?.brand || '';
@@ -3769,10 +3775,10 @@ function renderTypeFilteredView(viewName, typeId) {
     <div class="orphan-item selectable" data-id="${item.id}">
       <input type="checkbox" class="item-cb" data-id="${item.id}" ${checked} />
       <div class="item-info">
-        <div class="item-name">${name}</div>
+        <button type="button" class="entry-name item-name">${name}</button>
         <div class="item-meta">
-          <span>${subtitle}</span>
-          <span>📁 ${folder}</span>
+          <span>${typeId === 1 ? subtitle : escHtml(subtitle)}</span>
+          <span class="entry-folder">${folder}</span>
         </div>
       </div>
       ${tags ? `<div class="item-tags">${tags}</div>` : ''}
@@ -3780,16 +3786,10 @@ function renderTypeFilteredView(viewName, typeId) {
   };
 
   container.innerHTML = `
-    <div class="section-header">
-      <span class="section-title">
-        <label class="select-all-label">
-          <input type="checkbox" id="${viewName}-select-all-cb" ${allSelected ? 'checked' : ''} />
-          ${t('select.all')}
-        </label>
-        ${title} · ${filtered.length} ${t('dup.items')}
-      </span>
+    <header class="entry-heading"><h1>${title} <small>${filtered.length}</small></h1>
       <button class="btn-primary create-item-btn" data-type="${typeId}">${t('type.new.short')}</button>
-    </div>
+    </header>
+    <label class="entry-select select-all-label"><input type="checkbox" id="${viewName}-select-all-cb" ${allSelected ? 'checked' : ''}> ${t('select.all')}</label>
     <div class="all-items-body" style="position:relative">
       ${hasGroups ? `
         <div class="az-index-strip" id="az-index-strip-${viewName}">
@@ -3837,8 +3837,8 @@ function renderTypeFilteredView(viewName, typeId) {
         btn.classList.toggle('active', btn.dataset.letter === activeLetter);
       });
     };
-    mainContent.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('scroll', onScroll, { passive: true });
+    listScroll = new AbortController();
+    mainContent.addEventListener('scroll', onScroll, { passive: true, signal: listScroll.signal });
     requestAnimationFrame(onScroll);
   }
 
@@ -3865,7 +3865,7 @@ function renderTypeFilteredView(viewName, typeId) {
   // Click row to open detail
   container.querySelectorAll('.orphan-item').forEach(el => {
     el.addEventListener('click', (e) => {
-      if (e.target.closest('.item-cb')) return;
+      if (e.target.closest('.item-cb, a')) return;
       const cipher = allDecryptedCiphers.find(c => c.id === el.dataset.id);
       if (cipher) openDetailDrawer(cipher);
     });
@@ -4074,8 +4074,8 @@ function renderNoFolderView() {
         btn.classList.toggle('active', btn.dataset.letter === activeLetter);
       });
     };
-    mainContent.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('scroll', onScroll, { passive: true });
+    listScroll = new AbortController();
+    mainContent.addEventListener('scroll', onScroll, { passive: true, signal: listScroll.signal });
     requestAnimationFrame(onScroll);
   }
 

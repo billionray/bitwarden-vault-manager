@@ -2937,3 +2937,24 @@ button.overview-metric:hover, .audit-list button:hover { background:var(--bg-inp
   .overview-audit {grid-template-columns:1fr; gap:1rem;}
   .audit-score {display:flex; justify-content:space-between;}
 }
+
+/* Keep navigation and the inventory on one quiet visual grid. */
+.sidebar-title { color:var(--text-primary); -webkit-text-fill-color:currentColor; background:none; }
+.sidebar-nav { overflow-y:auto; display:block; }
+.sidebar-main-nav,.sidebar-folder-section { overflow:visible; max-height:none; min-height:0; }
+.nav-caption { margin:1rem .8rem .35rem; color:var(--text-muted); font-size:.71rem; font-weight:650; letter-spacing:.045em; }
+.sidebar .nav-item { padding:.48rem .75rem; border-radius:9px; }
+.sidebar .nav-icon { font-size:.9rem; width:1.4rem; }
+.nav-badge:empty { display:none; }
+.entry-heading { display:flex; gap:1rem; align-items:center; justify-content:space-between; margin-bottom:1rem; }
+.entry-heading h1 { display:flex; gap:.65rem; align-items:center; margin:0; font-size:clamp(1.55rem,3vw,2.15rem); letter-spacing:-.035em; }
+.entry-heading small { font-size:.8rem; letter-spacing:0; background:var(--bg-input); color:var(--text-secondary); border-radius:2rem; padding:.25rem .6rem; }
+.entry-heading .btn-primary { width:auto; margin:0; }
+.entry-select { margin:0 0 .75rem; }
+.letter-section { background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:.25rem .85rem; scroll-margin-top:5rem; }
+.letter-section .letter-section-header { padding:.5rem .15rem; background:var(--bg-card); color:var(--text-secondary); }
+.letter-section .orphan-item { border:0; border-top:1px solid var(--border-subtle); border-radius:0; margin:0; padding:.65rem .25rem; background:transparent; }
+.orphan-item.selectable:has(.item-cb:checked),.letter-section .orphan-item:hover { background:var(--bg-input); }
+.entry-name { display:block; max-width:100%; padding:0; font-family:inherit; color:var(--text-primary); background:none; border:0; text-align:start; cursor:pointer; }
+.letter-section .item-meta > span { max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+.entry-folder { color:var(--text-muted); }

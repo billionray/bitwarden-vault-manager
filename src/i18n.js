@@ -6,6 +6,8 @@
 let currentLocale = 'zh';
 
 const translations = {
+  'nav.library': { zh: '密码库', en: 'Library' },
+  'nav.tools': { zh: '整理与检查', en: 'Manage vault' },
   'login.key.help': { zh: '在哪里获取 API 密钥？', en: 'Where do I find my API key?' },
   'login.server.address': { zh: '服务器地址', en: 'Server address' },
   'merge.overlap': { zh: '条目已包含在另一合并组中，本组保留原条目。', en: 'Items overlap another merge group; originals retained.' },
