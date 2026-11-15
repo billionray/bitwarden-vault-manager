@@ -2915,3 +2915,25 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .login-container, .content-view, .auth-panel { animation: none; }
 }
+
+/* Overview: inventory first, then the findings that need attention. */
+.overview-title { margin: 0 0 1.25rem; font-size: clamp(1.55rem,3vw,2.15rem); letter-spacing: -.035em; }
+.overview-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: .75rem; }
+.overview-metric, .overview-audit { border: 1px solid var(--border); background: var(--bg-card); border-radius: 16px; }
+.overview-metric { position: relative; display: grid; gap: .8rem; padding: clamp(.9rem,2vw,1.5rem); text-align: start; font: inherit; color: var(--text-secondary); }
+.overview-metric strong { font-size: clamp(1.7rem,3vw,2.6rem); font-variant-numeric: tabular-nums; line-height: 1; color: var(--text-primary); }
+.overview-metric i { position:absolute; right:.8rem; bottom:.8rem; font-style:normal; }
+button.overview-metric:hover, .audit-list button:hover { background:var(--bg-input); cursor:pointer; }
+.overview-audit { margin-top:1.25rem; padding:clamp(1rem,2.5vw,2rem); display:grid; grid-template-columns:minmax(145px,1fr) 3fr; align-items:center; gap:2rem; }
+.audit-score { display:grid; justify-items:center; gap:1rem; }
+.audit-score h2 { font-size:1.1rem; margin:0; }
+.audit-list button, button.health-card-header { width:100%; color:var(--text-primary); background:transparent; font:inherit; border:0; text-align:start; }
+.audit-list button { display:grid; grid-template-columns:auto 1fr auto auto; align-items:center; gap:.85rem; padding:.75rem; border-bottom:1px solid var(--border); }
+.audit-list button:last-child { border-bottom:0; }
+.audit-list strong, .nav-badge { font-variant-numeric:tabular-nums; }
+.nav-item.active { box-shadow:inset 3px 0 var(--brand-light); }
+@media(max-width:720px) {
+  .overview-metrics {grid-template-columns:repeat(2,minmax(0,1fr));}
+  .overview-audit {grid-template-columns:1fr; gap:1rem;}
+  .audit-score {display:flex; justify-content:space-between;}
+}

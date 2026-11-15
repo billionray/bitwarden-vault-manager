@@ -301,7 +301,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Try to restore previous session (avoid re-login)
-  await tryRestoreSession();
+  if (location.hash === '#demo') enterDemoMode();
+  else await tryRestoreSession();
 });
 
 function updateControlButtons() {
@@ -2840,115 +2841,47 @@ function renderOverview() {
   const offset = circumference - (health.score / 100) * circumference;
   const color = health.score >= 80 ? 'var(--success)' : health.score >= 50 ? 'var(--warn)' : 'var(--danger)';
 
+  const metrics = [
+    ['overview.title', stats.totalItems, null],
+    ['overview.logins', stats.loginItems, 'type-login'],
+    ['overview.dup.groups', stats.exactDuplicateGroups + stats.sameSiteDuplicateGroups, 'duplicates'],
+    ['item.no.folder', stats.noFolderItems || 0, 'nofolder'],
+  ];
   container.innerHTML = `
-    <div class="health-ring-container">
-      <div class="health-ring">
-        <svg width="120" height="120" viewBox="0 0 120 120">
-          <circle class="health-ring-bg" cx="60" cy="60" r="52"/>
-          <circle class="health-ring-fg" cx="60" cy="60" r="52"
-            stroke="${color}"
-            stroke-dasharray="${circumference}"
-            stroke-dashoffset="${offset}"/>
-        </svg>
-        <div class="health-score-value">
-          <span class="health-score-num" style="color:${color}">${health.score}</span>
-          <span class="health-score-label">${t('overview.health.score')}</span>
+    <h1 class="overview-title">${t('nav.overview')}</h1>
+    <div class="overview-metrics">${metrics.map(([label, value, view]) => {
+      const tag = view ? 'button' : 'div';
+      return `<${tag} class="overview-metric" ${view ? `type="button" data-destination="${view}"` : ''}>
+        <span>${t(label)}</span><strong>${value}</strong>${view ? '<i aria-hidden="true">↗</i>' : ''}
+      </${tag}>`;
+    }).join('')}</div>
+    <section class="overview-audit" aria-labelledby="audit-title">
+      <div class="audit-score">
+        <h2 id="audit-title">${t('nav.health')}</h2>
+        <div class="health-ring">
+          <svg aria-hidden="true" width="120" height="120" viewBox="0 0 120 120">
+            <circle class="health-ring-bg" cx="60" cy="60" r="52"/>
+            <circle class="health-ring-fg" cx="60" cy="60" r="52" stroke="${color}" stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"/>
+          </svg>
+          <div class="health-score-value"><strong class="health-score-num">${health.score}</strong><span class="health-score-label">/ 100</span></div>
         </div>
       </div>
-      <div class="health-issues-summary">
-        ${health.issues.map(i => `
-          <div class="health-issue-row clickable" data-health-filter="${i.id}" style="cursor:pointer">
-            <span class="issue-dot ${i.severity}"></span>
-            <span class="issue-count">${i.count}</span>
-            <span>${i.label}</span>
-          </div>
-        `).join('') || `<div class="health-issue-row" style="color:var(--success)">${t('health.empty')}</div>`}
-      </div>
-    </div>
-
-    <div class="overview-grid">
-      <div class="stat-card clickable" id="ov-total">
-        <div class="stat-number">${stats.totalItems}</div>
-        <div class="stat-label">${t('overview.title')}</div>
-      </div>
-      <div class="stat-card clickable" id="ov-login">
-        <div class="stat-number">${stats.loginItems}</div>
-        <div class="stat-label">${t('overview.logins')}</div>
-      </div>
-      <div class="stat-card warn clickable" id="ov-dup">
-        <div class="stat-number">${stats.exactDuplicateGroups + stats.sameSiteDuplicateGroups}</div>
-        <div class="stat-label">${t('overview.dup.groups')}</div>
-      </div>
-      <div class="stat-card warn clickable" id="ov-clean">
-        <div class="stat-number">${stats.totalDuplicateItems}</div>
-        <div class="stat-label">${t('overview.cleanable')}</div>
-      </div>
-      <div class="stat-card clickable" id="ov-nofolder">
-        <div class="stat-number">${stats.noFolderItems || 0}</div>
-        <div class="stat-label">${t('item.no.folder')}</div>
-      </div>
-    </div>
-
-    <h3 style="margin-bottom: 12px; font-size: 0.95rem; color: var(--text-secondary)">${t('overview.quick')}</h3>
-    <div class="quick-actions">
-      <button class="quick-action-btn" onclick="document.querySelector('[data-view=duplicates]').click()">
-        <span class="quick-action-icon">🔀</span> ${t('overview.quick.dedup')}
-      </button>
-      <button class="quick-action-btn" onclick="document.querySelector('[data-view=health]').click()">
-        <span class="quick-action-icon">🛡️</span> ${t('overview.quick.weak')}
-      </button>
-      <button class="quick-action-btn" id="qa-no-url">
-        <span class="quick-action-icon">🔗</span> ${t('overview.quick.nourl')}
-      </button>
-      <button class="quick-action-btn" id="qa-no-name">
-        <span class="quick-action-icon">📝</span> ${t('overview.quick.notitle')}
-      </button>
-      <button class="quick-action-btn" id="qa-no-folder">
-        <span class="quick-action-icon">📂</span> ${t('overview.quick.nofolder')}
-      </button>
-    </div>
-  `;
-
-  // Quick action handlers for "all" view with filter
-  // Wire up stat card clicks
-  $('#ov-total')?.addEventListener('click', () => switchView('type-login'));
-  $('#ov-login')?.addEventListener('click', () => switchView('type-login'));
-  $('#ov-dup')?.addEventListener('click', () => switchView('duplicates'));
-  $('#ov-clean')?.addEventListener('click', () => switchView('duplicates'));
-  $('#ov-nofolder')?.addEventListener('click', () => switchView('nofolder'));
-
-  $('#qa-no-url')?.addEventListener('click', () => {
-    searchQuery = '';
-    switchView('health');
-  });
-
-  $('#qa-no-name')?.addEventListener('click', () => {
-    searchQuery = '';
-    switchView('health');
-  });
-
-  $('#qa-no-folder')?.addEventListener('click', () => {
-    switchView('nofolder');
-  });
-
-  // Health issue row click → jump to filtered all view
-  const healthFilterMap = { 'weak-pw': 'weak-pw', 'empty-pw': 'empty-pw', 'http': 'http-uri', 'no-url': 'no-url', 'no-name': 'no-name', 'decrypt-fail': 'decrypt-fail' };
-  container.querySelectorAll('.health-issue-row[data-health-filter]').forEach(row => {
-    row.addEventListener('click', () => {
-      const healthId = row.dataset.healthFilter;
-      const filterId = healthFilterMap[healthId];
-      if (filterId) {
-        activeFilters.clear();
-        activeFilters.add(filterId);
-        switchView('health');
-        $$('.filter-tag').forEach(t => {
-          t.classList.toggle('active', t.dataset.filter === filterId);
-        });
-      } else {
-        // For reused-pw, stale — go to health view
-        switchView('health');
-      }
-    });
+      <div class="audit-list">${health.issues.map(i => `<button type="button" data-issue="${i.id}">
+        <span class="issue-dot ${i.severity}"></span><span>${i.label}</span><strong>${i.count}</strong><span aria-hidden="true">›</span>
+      </button>`).join('') || `<p>${t('health.empty')}</p>`}</div>
+    </section>`;
+  container.querySelectorAll('[data-destination]').forEach(button =>
+    button.onclick = () => switchView(button.dataset.destination));
+  container.querySelectorAll('[data-issue]').forEach(button => {
+    button.onclick = () => {
+      searchQuery = '';
+      $('#global-search').value = '';
+      switchView('health');
+      const card = $('#view-health').querySelector(`[data-issue-id="${CSS.escape(button.dataset.issue)}"]`);
+      card?.classList.add('expanded');
+      card?.querySelector('button')?.setAttribute('aria-expanded', 'true');
+      card?.querySelector('button')?.focus();
+    };
   });
 }
 
@@ -4207,15 +4140,15 @@ function renderHealthView() {
       <span class="section-title">🛡️ ${t('health.title')} · ${t('health.score.label')} ${health.score}/100</span>
     </div>
     ${filteredIssues.map((issue, i) => `
-      <div class="health-issue-card" data-index="${i}">
-        <div class="health-card-header">
+      <div class="health-issue-card" data-issue-id="${issue.id}" data-index="${i}">
+        <button type="button" class="health-card-header" aria-expanded="false">
           <div class="severity-indicator ${issue.severity}"></div>
           <div class="health-card-info">
             <div class="health-card-label">${issue.label}</div>
             <div class="health-card-count">${issue.count} ${t('dup.items')}</div>
           </div>
           <span class="health-card-arrow">›</span>
-        </div>
+        </button>
         <div class="health-card-items">
           ${(issue.items || []).slice(0, 50).map(c => `
             <div class="health-sub-item" data-id="${c.id}" style="cursor:pointer">
@@ -4232,7 +4165,7 @@ function renderHealthView() {
   // Toggle expand
   container.querySelectorAll('.health-issue-card').forEach(card => {
     card.querySelector('.health-card-header').addEventListener('click', () => {
-      card.classList.toggle('expanded');
+      card.querySelector('.health-card-header').setAttribute('aria-expanded', String(card.classList.toggle('expanded')));
     });
 
     // Click sub-item to open detail
