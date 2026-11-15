@@ -2999,3 +2999,22 @@ button.overview-metric:hover, .audit-list button:hover { background:var(--bg-inp
 .health-card-count { margin:0; font-variant-numeric:tabular-nums; }
 button.health-sub-item { width:100%; border:0; border-bottom:1px solid var(--border-subtle); background:none; color:var(--text-primary); font-family:inherit; text-align:start; cursor:pointer; }
 button.health-sub-item:hover,.health-card-header:hover { background:var(--bg-input); }
+
+.review-tools, .trash-batch-bar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.65rem 1rem; }
+.review-tools { margin-block:0 1rem; }
+.review-tools .section-hint { font-style:normal; }
+.trash-batch-bar { background:var(--bg-card); border-color:var(--border); }
+.trash-batch-bar .batch-actions { flex-wrap:wrap; }
+.content-view > .orphan-item, #view-folder .vault-item { padding:.85rem 1rem; border-radius:12px; }
+.content-view .empty-state { padding:clamp(1.25rem,5vw,3rem); border:1px solid var(--border); border-radius:16px; background:var(--bg-card); }
+#view-dead-urls .empty-state { text-align:start; }
+#view-dead-urls .empty-state h1 { color:var(--text-primary); font-size:clamp(1.55rem,3vw,2.15rem); letter-spacing:-.035em; }
+#view-dead-urls .empty-state p { margin:.6rem 0 1.4rem; color:var(--text-secondary); }
+#start-dead-url-check-btn { width:auto; margin:0; }
+#dead-url-progress-fill { display:block; width:min(100%,22rem); height:.55rem; margin:.9rem 0; accent-color:var(--brand); }
+.folder-action-btn { width:auto; padding-inline:.35rem; color:var(--text-secondary); }
+.credfile-view { margin-inline:0; }
+#confirm-modal { margin:auto; color:var(--text-primary); }
+#confirm-modal:modal, #confirm-modal::backdrop { overscroll-behavior:contain; }
+#confirm-modal::backdrop { background:#0009; overflow:hidden; }
+#modal-message { white-space:pre-line; overflow-wrap:anywhere; }

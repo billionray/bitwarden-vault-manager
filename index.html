@@ -76,7 +76,7 @@
           <span class="ctrl-label" id="lang-label-login">EN</span>
         </button>
         <button id="theme-toggle-login" class="ctrl-btn" title="Theme">
-          <span class="ctrl-icon" id="theme-icon-login">☀️</span>
+          <span class="ctrl-icon" id="theme-icon-login">◐</span>
         </button>
       </div>
 
@@ -107,14 +107,14 @@
           </div>
 
           <div class="auth-mode-toggle">
-            <button type="button" class="auth-tab active" data-mode="apikey" data-i18n="login.tab.apikey">🔑 API Key（推荐）</button>
-            <button type="button" class="auth-tab" data-mode="credfile" data-i18n="login.tab.credfile">🔐 加密文件</button>
+            <button type="button" class="auth-tab active" data-mode="apikey" data-i18n="login.tab.apikey">API Key（推荐）</button>
+            <button type="button" class="auth-tab" data-mode="credfile" data-i18n="login.tab.credfile">加密文件</button>
           </div>
 
           <!-- API Key Mode -->
           <div id="auth-apikey" class="auth-panel active">
             <details class="key-help"><summary data-i18n="login.key.help">在哪里获取 API 密钥？</summary>
-              <p data-i18n="login.apikey.info" data-i18n-html>💡 在 <a href="https://vault.bitwarden.com" target="_blank" rel="noopener">Bitwarden 网页版</a> → <strong>设置</strong> → <strong>安全</strong> → <strong>密钥</strong> → 查看 API 密钥</p>
+              <p data-i18n="login.apikey.info" data-i18n-html>在 <a href="https://vault.bitwarden.com" target="_blank" rel="noopener">Bitwarden 网页版</a> → <strong>设置</strong> → <strong>安全</strong> → <strong>密钥</strong> → 查看 API 密钥</p>
             </details>
             <div class="form-group">
               <label for="client-id">client_id</label>
@@ -141,13 +141,12 @@
               <input type="password" id="cred-import-password" autocomplete="off" />
             </div>
             <div class="auth-info">
-              <p data-i18n="login.credfile.info" data-i18n-html>🔐 使用加密凭证文件一键登录。登录后可在侧边栏「加密登录」生成文件。</p>
+              <p data-i18n="login.credfile.info" data-i18n-html>使用加密凭证文件一键登录。登录后可在侧边栏「加密登录」生成文件。</p>
             </div>
             <div id="cred-drop-zone" class="cred-drop-zone">
-              <div class="drop-icon">📁</div>
               <div class="drop-text" data-i18n="login.credfile.drop">将加密凭证文件拖拽到此处</div>
               <div class="drop-or" data-i18n="login.credfile.or">或</div>
-              <button type="button" class="drop-browse-btn" id="cred-browse-btn" data-i18n="login.credfile.browse">📂 选择文件</button>
+              <button type="button" class="drop-browse-btn" id="cred-browse-btn" data-i18n="login.credfile.browse">选择文件</button>
               <input type="file" id="cred-file-input" style="display:none" />
             </div>
           </div>
@@ -165,7 +164,7 @@
           </div>
 
           <div class="open-source-note">
-            <span data-i18n="login.opensource">🔓 本项目已开源，请放心使用</span>
+            <span data-i18n="login.opensource">本项目已开源，请放心使用</span>
             <a href="https://github.com/perfhelf/bitwarden-vault-manager" target="_blank" rel="noopener noreferrer" data-i18n="login.opensource.link">查看源码</a>
           </div>
         </form>
@@ -264,7 +263,7 @@
           <section class="sidebar-folder-section" aria-labelledby="sidebar-folder-title">
             <div class="sidebar-divider"></div>
             <div class="sidebar-section-header">
-              <span id="sidebar-folder-title" class="sidebar-section-title" data-i18n="nav.folders">📁 文件夹</span>
+              <span id="sidebar-folder-title" class="sidebar-section-title" data-i18n="nav.folders">文件夹</span>
               <button class="folder-add-btn" id="folder-add-btn" title="新建文件夹" data-i18n-title="nav.folders.add">+</button>
             </div>
             <div id="folder-list" class="folder-list"></div>
@@ -307,7 +306,7 @@
               <span class="ctrl-label" id="lang-label-dash">EN</span>
             </button>
             <button id="theme-toggle-dash" class="ctrl-btn" title="Theme">
-              <span class="ctrl-icon" id="theme-icon-dash">☀️</span>
+              <span class="ctrl-icon" id="theme-icon-dash">◐</span>
             </button>
           </div>
         </div>
@@ -351,8 +350,8 @@
     <div id="batch-bar" class="batch-bar" style="display:none">
       <span id="batch-count"></span>
       <div class="batch-actions">
-        <button class="batch-btn move" id="batch-move-btn" data-i18n="batch.move">📁 移动到文件夹</button>
-        <button class="batch-btn danger" id="batch-delete-btn" data-i18n="batch.delete">🗑️ 删除</button>
+        <button class="batch-btn move" id="batch-move-btn" data-i18n="batch.move">移动到文件夹</button>
+        <button class="batch-btn danger" id="batch-delete-btn" data-i18n="batch.delete">删除</button>
         <button class="batch-btn" id="batch-cancel-btn" data-i18n="batch.cancel">✕ 取消</button>
       </div>
     </div>
@@ -369,16 +368,14 @@
     </div>
 
     <!-- Confirm Modal -->
-    <div id="confirm-modal" class="modal-overlay" style="display:none">
-      <div class="modal-card">
-        <h3 id="modal-title"></h3>
-        <p id="modal-message"></p>
-        <div class="modal-actions">
-          <button class="btn-outline" id="modal-cancel" data-i18n="modal.cancel">取消</button>
-          <button class="btn-danger" id="modal-confirm" data-i18n="modal.confirm">确认</button>
-        </div>
+    <dialog id="confirm-modal" class="modal-card" aria-labelledby="modal-title" aria-describedby="modal-message">
+      <h3 id="modal-title"></h3>
+      <p id="modal-message"></p>
+      <div class="modal-actions">
+        <button class="btn-outline" id="modal-cancel" autofocus data-i18n="modal.cancel">取消</button>
+        <button class="btn-danger" id="modal-confirm" data-i18n="modal.confirm">确认</button>
       </div>
-    </div>
+    </dialog>
 
     <!-- Folder Name Modal (reusable for create/rename) -->
     <div id="folder-modal" class="modal-overlay" style="display:none">
@@ -406,7 +403,7 @@
     <!-- Merge Progress Overlay -->
     <div id="merge-progress-overlay" class="modal-overlay" style="display:none">
       <div class="modal-card merge-progress-card">
-        <h3 data-i18n="merge.merging">🔀 批量合并中...</h3>
+        <h3 data-i18n="merge.merging">批量合并中...</h3>
         <div class="merge-progress-bar-container">
           <div class="merge-progress-bar" id="merge-progress-bar"></div>
         </div>
@@ -429,11 +426,11 @@
   <!-- SEO: Full product description for crawlers that don't execute JS -->
   <noscript>
     <div style="max-width:800px;margin:2rem auto;padding:1.5rem;font-family:Inter,sans-serif;line-height:1.8;color:#e0e0e0;background:#0a0a0f;">
-      <h1>🔐 Bitwarden Vault Manager</h1>
+      <h1>Bitwarden Vault Manager</h1>
       <p><strong>Open-source, client-side encrypted Bitwarden vault management dashboard.</strong> All cryptographic operations — PBKDF2/Argon2id key derivation, HKDF-Expand (RFC 5869), AES-256-CBC encrypt/decrypt with HMAC-SHA256 verification — execute entirely in your browser. Zero plaintext data ever reaches any server.</p>
       <p><a href="https://bitwarden.xuebz.com/">Live Demo</a> | <a href="https://github.com/perfhelf/bitwarden-vault-manager">GitHub Source Code (MIT License)</a></p>
 
-      <h2>🔍 Smart Deduplication Engine</h2>
+      <h2>Smart Deduplication Engine</h2>
       <p>766-line Fusion Strategy engine that detects exact duplicates (URI + username + password triple match) and same-site duplicates (shared registered domain with eTLD+1 normalization across 30+ country-code TLDs). Deep identity comparison covers ALL fields: name, TOTP, notes, URIs, custom fields, passkeys (Fido2Credentials), favorite status, and re-prompt settings.</p>
       <ul>
         <li><strong>Path A (Pure Delete)</strong>: 100% byte-identical items → keep one, soft-delete the rest (30-day recovery)</li>
@@ -441,19 +438,19 @@
         <li><strong>Passkey-Aware Merge</strong>: Preserves per-cipher encryption Key + Fido2Credentials through full Create-Then-Delete cycle, as Bitwarden's API rejects PUT updates on passkey-holding ciphers</li>
       </ul>
 
-      <h2>🏥 Vault Health Analysis</h2>
+      <h2>Vault Health Analysis</h2>
       <p>Scores your vault 0–100 with 8 risk categories: weak passwords (length &lt; 8, digits-only, letters-only), empty passwords (excluding passkey items), password reuse across sites, stale passwords (&gt;1 year), insecure HTTP URIs, missing URLs, missing titles, and decrypt failures. Scoring formula: score = 100 - (high×3 + medium×1.5 + low×0.5) / totalLogins × 25.</p>
 
-      <h2>🔗 URL Dead Link Detection</h2>
+      <h2>URL Dead Link Detection</h2>
       <p>Full-vault scan using dual-strategy probing (fetch no-cors + img favicon). Built-in whitelist of ~200 major domains (Google, Apple, Microsoft, Amazon, Meta, Netflix, GitHub, etc.) with parent-domain matching to reduce false positives. Real-time progress bar with domain counter. Batch operations on detected dead links.</p>
 
-      <h2>⚡ Optimistic Hot Update</h2>
+      <h2>Optimistic Hot Update</h2>
       <p>All operations update the UI instantly. Server operations execute asynchronously in the background. Failed operations trigger toast notification + automatic vault resync. Permanent deletes use pessimistic mode (UI updates only after server confirmation).</p>
 
-      <h2>📝 Full Item Management</h2>
-      <p>Five item types with dedicated sidebar sections: Login 🔐 (with TOTP, passkeys, custom fields), Payment Card 💳, Identity 🪪, Secure Note 📝, SSH Key 🔑. Full folder management (create, rename, delete, batch move). Advanced search with keyboard shortcut (press / to focus). Favorites, corrupted items, trash with restore/permanent-delete.</p>
+      <h2>Full Item Management</h2>
+      <p>Five item types with dedicated sidebar sections: Login (with TOTP, passkeys, custom fields), Payment Card 💳, Identity 🪪, Secure Note 📝, SSH Key 🔑. Full folder management (create, rename, delete, batch move). Advanced search with keyboard shortcut (press / to focus). Favorites, corrupted items, trash with restore/permanent-delete.</p>
 
-      <h2>🔒 Security</h2>
+      <h2>Security</h2>
       <ul>
         <li>Master password NEVER leaves the browser</li>
         <li>Supports PBKDF2-SHA256 and Argon2id key derivation</li>
@@ -463,10 +460,10 @@
         <li>Encrypted credential file uses AES-256-GCM</li>
       </ul>
 
-      <h2>🌍 Internationalization</h2>
+      <h2>Internationalization</h2>
       <p>Full Chinese (中文) and English support with 375+ translation keys. Browser language auto-detection with manual toggle. Covers all UI surfaces: login, dashboard, duplicates, health, search, batch actions, detail drawer, edit form, trash, merge progress, credential file, and toast notifications.</p>
 
-      <h2>🚀 Technology</h2>
+      <h2>Technology</h2>
       <p>Pure HTML + CSS + JavaScript (zero framework dependencies). Built with Vite. Deployed on Cloudflare Pages with Pages Functions proxy to Bitwarden official API (US + EU regions). MIT licensed. <a href="https://github.com/perfhelf/bitwarden-vault-manager">View source code on GitHub</a>.</p>
     </div>
   </noscript>

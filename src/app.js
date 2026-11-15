@@ -40,11 +40,11 @@ const $$ = (sel) => document.querySelectorAll(sel);
 const SELF_HOST_OPTION_VALUE = 'selfhost';
 
 const TYPE_META = {
-  1: { view: 'type-login', icon: '🔐', key: 'type.login' },
-  2: { view: 'type-note', icon: '📝', key: 'type.note' },
-  3: { view: 'type-card', icon: '💳', key: 'type.card' },
-  4: { view: 'type-identity', icon: '🪪', key: 'type.identity' },
-  5: { view: 'type-sshkey', icon: '🔑', key: 'type.sshkey' },
+  1: { view: 'type-login', key: 'type.login' },
+  2: { view: 'type-note', key: 'type.note' },
+  3: { view: 'type-card', key: 'type.card' },
+  4: { view: 'type-identity', key: 'type.identity' },
+  5: { view: 'type-sshkey', key: 'type.sshkey' },
 };
 
 const VIEW_TYPE_ID = {
@@ -57,11 +57,6 @@ const VIEW_TYPE_ID = {
 
 function typeName(typeId) {
   return t(TYPE_META[typeId]?.key || 'type.item');
-}
-
-function typeTitle(typeId) {
-  const meta = TYPE_META[typeId];
-  return meta ? `${meta.icon} ${typeName(typeId)}` : t('type.item');
 }
 
 function renderCurrentView() {
@@ -301,9 +296,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Try to restore previous session (avoid re-login)
-  if (['#demo', '#demo-logins', '#demo-detail', '#demo-edit', '#demo-duplicates', '#demo-health'].includes(location.hash)) {
+  if (['#demo', '#demo-logins', '#demo-detail', '#demo-edit', '#demo-duplicates', '#demo-health', '#demo-trash', '#demo-dead-urls'].includes(location.hash)) {
     enterDemoMode();
-    if (location.hash !== '#demo') switchView(({ '#demo-duplicates': 'duplicates', '#demo-health': 'health' })[location.hash] || 'type-login');
+    if (location.hash !== '#demo') switchView(({ '#demo-duplicates': 'duplicates', '#demo-health': 'health', '#demo-trash': 'trash', '#demo-dead-urls': 'dead-urls' })[location.hash] || 'type-login');
     const sample = allDecryptedCiphers.find(c => c.type === 1 && c.decrypted?.password);
     if (sample && location.hash === '#demo-detail') openDetailDrawer(sample);
     if (sample && location.hash === '#demo-edit') openEditDrawer(sample);
@@ -321,7 +316,7 @@ function updateControlButtons() {
   if (el1) el1.textContent = langText;
   if (el2) el2.textContent = langText;
   // Theme icons
-  const themeIcon = theme === 'dark' ? '☀️' : '🌙';
+  const themeIcon = theme === 'dark' ? '◐' : '◑';
   const ti1 = $('#theme-icon-login');
   const ti2 = $('#theme-icon-dash');
   if (ti1) ti1.textContent = themeIcon;
@@ -716,9 +711,8 @@ function setupKeyboardShortcuts() {
       }
     }
     // Escape to close drawer/modal
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' && !$('#confirm-modal').open) {
       closeDetailDrawer();
-      closeModal();
     }
   });
 }
@@ -732,7 +726,7 @@ function setupFilterTags() {
 
   container.innerHTML = QUICK_FILTERS.map(f => `
     <button class="filter-tag" data-filter="${f.id}">
-      ${f.icon} ${t(f.labelKey)}<span class="tag-count">${counts[f.id]}</span>
+      ${t(f.labelKey)}<span class="tag-count">${counts[f.id]}</span>
     </button>
   `).join('');
 
@@ -787,7 +781,7 @@ function setupBatchOps() {
         updateSidebarBadges();
         // Force immediate re-render of current view
         switchView(currentView);
-        showToast(`✅ ${count} ${t('dup.items')} ${t('detail.delete.trash')}`, 'success');
+        showToast(`${count} ${t('dup.items')} ${t('detail.delete.trash')}`, 'success');
 
         // ── Phase 2: 后台服务端删除 ──
         try {
@@ -819,7 +813,7 @@ function updateBatchBar() {
   const bar = $('#batch-bar');
   if (selectedItems.size > 0) {
     bar.style.display = 'flex';
-    $('#batch-count').textContent = `☑ ${selectedItems.size} ${t('batch.selected')}`;
+    $('#batch-count').textContent = `${selectedItems.size} ${t('batch.selected')}`;
   } else {
     bar.style.display = 'none';
   }
@@ -863,8 +857,8 @@ function renderFolderList() {
       <span class="folder-name">${escHtml(f.name)}</span>
       <span class="folder-count">${folderCounts[f.id] || 0}</span>
       <div class="folder-actions">
-        <button class="folder-action-btn rename" data-folder-id="${f.id}" title="${t('folder.rename')}">✏️</button>
-        <button class="folder-action-btn delete" data-folder-id="${f.id}" title="${t('folder.delete')}">🗑️</button>
+        <button class="folder-action-btn rename" data-folder-id="${f.id}" title="${t('folder.rename')}">${t('folder.rename')}</button>
+        <button class="folder-action-btn delete" data-folder-id="${f.id}" title="${t('folder.delete')}">${t('folder.delete')}</button>
       </div>
     </div>
   `).join('');
@@ -905,7 +899,7 @@ function renderFolderList() {
           }
           updateSidebarBadges();
           renderFolderList();
-          showToast(`✅ ${folderName} ${t('folder.deleted.ok')}`, 'success');
+          showToast(`${folderName} ${t('folder.deleted.ok')}`, 'success');
 
           // ── Phase 2: 后台服务端删除 ──
           try {
@@ -953,10 +947,10 @@ function showFolderNameModal(mode, folderId = null) {
       // ── Phase 1: 乐观热更新 ──
       closeFolderModal();
       if (mode === 'create') {
-        showToast(`✅ ${name} ${t('folder.created.ok')}`, 'success');
+        showToast(`${name} ${t('folder.created.ok')}`, 'success');
       } else {
         if (isDemoMode) folderMap[folderId] = name;
-        showToast(`✅ ${t('folder.renamed.ok')} ${name}`, 'success');
+        showToast(`${t('folder.renamed.ok')} ${name}`, 'success');
       }
 
       // ── Phase 2: 后台服务端操作 ──
@@ -979,7 +973,7 @@ function showFolderNameModal(mode, folderId = null) {
       // ── Phase 3: 后台 resync ──
       resyncVault();
     } catch (err) {
-      showToast(`❌ ${t('toast.op.fail')}: ${err.message}`, 'error');
+      showToast(`${t('toast.op.fail')}: ${err.message}`, 'error');
     } finally {
       confirmBtn.disabled = false;
       confirmBtn.textContent = t('modal.confirm');
@@ -1000,11 +994,11 @@ function showMoveFolderModal() {
 
   list.innerHTML = `
     <button class="move-folder-option" data-folder-id="__none__">
-      <span>📂</span> <span>${t('folder.none')}</span>
+      <span>${t('folder.none')}</span>
     </button>
     ${folderList.map(f => `
       <button class="move-folder-option" data-folder-id="${f.id}">
-        <span>📁</span> <span>${escHtml(f.name)}</span>
+        <span>${escHtml(f.name)}</span>
       </button>
     `).join('')}
   `;
@@ -1036,14 +1030,14 @@ function showMoveFolderModal() {
         renderFolderList();
         switchView(currentView);
 
-        showToast(`✅ ${ids.length} ${t('dup.items')} ${t('folder.move.ok')} ${folderName}`, 'success');
+        showToast(`${ids.length} ${t('dup.items')} ${t('folder.move.ok')} ${folderName}`, 'success');
 
         // Server-side move (background)
         await client.bulkMoveCiphersToFolder(ids, realFolderId);
         // Background resync
         resyncVault();
       } catch (err) {
-        showToast(`❌ ${t('toast.op.fail')}: ${err.message}`, 'error');
+        showToast(`${t('toast.op.fail')}: ${err.message}`, 'error');
         resyncVault();
       }
     });
@@ -1074,13 +1068,9 @@ function renderFolderView() {
     });
   }
 
-  const typeIcons = { 1: '🔐', 2: '📝', 3: '💳', 4: '🪪' };
 
   container.innerHTML = `
-    <div class="section-header">
-      <span class="section-title">📁 ${escHtml(folderName)}</span>
-      <span class="results-count">${items.length} ${t('item.items')}</span>
-    </div>
+    <header class="entry-heading"><h1>${escHtml(folderName)} <small>${items.length}</small></h1></header>
     <div class="section-header">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.82rem;color:var(--text-secondary)">
         <input type="checkbox" id="folder-select-all-cb" class="item-checkbox" /> ${t('item.selectall')}
@@ -1089,17 +1079,16 @@ function renderFolderView() {
     ${items.map(c => `
       <div class="vault-item ${selectedItems.has(c.id) ? 'selected' : ''}" data-id="${c.id}">
         <input type="checkbox" class="item-checkbox item-select-cb" data-id="${c.id}" ${selectedItems.has(c.id) ? 'checked' : ''}/>
-        <div class="item-type-icon">${typeIcons[c.type] || '📄'}</div>
         <div class="item-info">
           <div class="item-name">${escHtml(c.decrypted?.name || t('item.untitled'))}</div>
           <div class="item-meta">
-            ${c.decrypted?.username ? `<span>👤 ${escHtml(c.decrypted.username)}</span>` : ''}
-            ${(c.decrypted?.uris?.filter(Boolean) || []).length > 0 ? `<span>🔗 ${linkUri(c.decrypted.uris[0])}</span>` : ''}
+            ${c.decrypted?.username ? `<span>${escHtml(c.decrypted.username)}</span>` : ''}
+            ${(c.decrypted?.uris?.filter(Boolean) || []).length > 0 ? `<span>${linkUri(c.decrypted.uris[0])}</span>` : ''}
           </div>
         </div>
         <div class="item-tags">
-          ${(c.raw?.Login?.Fido2Credentials?.length || 0) > 0 ? '<span class="mini-tag passkey">🔑</span>' : ''}
-          ${c.decrypted?.totp ? '<span class="mini-tag totp">🕐</span>' : ''}
+          ${(c.raw?.Login?.Fido2Credentials?.length || 0) > 0 ? '<span class="mini-tag passkey">Passkey</span>' : ''}
+          ${c.decrypted?.totp ? '<span class="mini-tag totp">TOTP</span>' : ''}
         </div>
       </div>
     `).join('') || `<div class="empty-state">${t('folder.view.empty')}</div>`}
@@ -1355,7 +1344,7 @@ function openDetailDrawer(cipher) {
   </details>`;
 
   // ── Edit + Delete Buttons ──
-  html += `<div class="detail-actions">
+  if (currentView !== 'trash') html += `<div class="detail-actions">
     <button class="detail-edit-btn" id="detail-edit-btn">${t('detail.btn.edit')}</button>
     <button class="detail-delete-btn" id="detail-delete-btn">${t('detail.btn.delete')}</button>
   </div>`;
@@ -1414,12 +1403,12 @@ function showDecryptLog(cipher) {
   let html = `<div class="decrypt-log-overlay" id="decrypt-log-overlay">
     <div class="decrypt-log-modal">
       <div class="decrypt-log-header">
-        <span>📋 ${t('log.title')} · ${escHtml(cipher.decrypted?.name || t('item.untitled'))}</span>
+        <span>${t('log.title')} · ${escHtml(cipher.decrypted?.name || t('item.untitled'))}</span>
         <button class="decrypt-log-close" id="decrypt-log-close">✕</button>
       </div>
       <div class="decrypt-log-summary">
         <span>ID: <code>${cipher.id}</code></span>
-        <span>${t('log.status')}: ${errors.length > 0 ? `<span style="color:#f87171">❌ ${errors.length} ${t('log.fields.failed')}</span>` : `<span style="color:#4ade80">✅ ${t('log.all.ok')}</span>`}</span>
+        <span>${t('log.status')}: ${errors.length > 0 ? `<span style="color:#f87171">${errors.length} ${t('log.fields.failed')}</span>` : `<span style="color:#4ade80">${t('log.all.ok')}</span>`}</span>
         ${errors.length > 0 ? `<span>${t('log.failed.fields')}: <code>${errors.join(', ')}</code></span>` : ''}
       </div>
       <div class="decrypt-log-body">
@@ -1427,7 +1416,7 @@ function showDecryptLog(cipher) {
           <thead><tr><th>${t('log.field')}</th><th>${t('log.status')}</th><th>${t('log.detail')}</th></tr></thead>
           <tbody>
             ${log.map(entry => {
-              const icon = entry.status === 'ok' ? '✅' : entry.status === 'fail' ? '❌' : entry.status === 'skip' ? '⏭️' : 'ℹ️';
+              const icon = entry.status;
               const cls = entry.status === 'fail' ? 'log-fail' : entry.status === 'ok' ? 'log-ok' : 'log-skip';
               return `<tr class="${cls}"><td>${escHtml(entry.field)}</td><td>${icon}</td><td>${escHtml(entry.detail)}</td></tr>`;
             }).join('')}
@@ -1467,7 +1456,7 @@ async function refetchSingleCipher(cipher) {
     const logEntries = [];
     const decryptErrors = [];
     logEntries.push({ field: t('decrypt.refetch.time'), status: 'info', detail: new Date().toLocaleString(getLocale() === 'zh' ? 'zh-CN' : 'en-US') });
-    logEntries.push({ field: '📡 API Request', status: 'ok', detail: t('decrypt.api.ok', cipher.id.substring(0, 8)) });
+    logEntries.push({ field: 'API Request', status: 'ok', detail: t('decrypt.api.ok', cipher.id.substring(0, 8)) });
 
     // Check if raw data actually has encrypted fields
     if (!freshRaw.Name) {
@@ -2454,25 +2443,19 @@ async function deleteCurrentCipher(cipher) {
   );
 }
 
-let modalResolve = null;
-
 function showConfirm(title, message, onConfirm) {
   const modal = $('#confirm-modal');
   $('#modal-title').textContent = title;
   $('#modal-message').textContent = message;
-  modal.style.display = 'flex';
+  modal.showModal();
 
   const confirmBtn = $('#modal-confirm');
   const cancelBtn = $('#modal-cancel');
 
-  const cleanup = () => { modal.style.display = 'none'; };
+  const cleanup = () => modal.close();
 
   confirmBtn.onclick = () => { cleanup(); onConfirm(); };
   cancelBtn.onclick = cleanup;
-}
-
-function closeModal() {
-  $('#confirm-modal').style.display = 'none';
 }
 
 // ========================
@@ -2533,7 +2516,6 @@ function showMergeReport(successGroups, successDeletes, failures) {
     html += '<ul class="report-fail-list">';
     for (const f of failures) {
       html += `<li>
-        <span class="fail-icon">❌</span>
         <div class="fail-detail">
           <div class="fail-label">${escapeHtml(f.label)}</div>
           <div class="fail-reason">${escapeHtml(f.reason)}</div>
@@ -2617,10 +2599,10 @@ async function decryptAllCiphers(syncData) {
     if (cipherKeyStr) {
       try {
         itemKey = await decryptSymmetricKey(cipherKeyStr, symmetricKey);
-        logEntries.push({ field: '🔑 Cipher Key', status: 'ok', detail: t('decrypt.cipher.key.ok') });
+        logEntries.push({ field: 'Cipher Key', status: 'ok', detail: t('decrypt.cipher.key.ok') });
       } catch (err) {
         console.debug('[Decrypt] Failed to decrypt per-cipher Key:', err.message);
-        logEntries.push({ field: '🔑 Cipher Key', status: 'fail', detail: t('decrypt.cipher.key.fail', err.message) });
+        logEntries.push({ field: 'Cipher Key', status: 'fail', detail: t('decrypt.cipher.key.fail', err.message) });
         // Fall back to master key — may still fail for individual fields
       }
     }
@@ -3282,14 +3264,12 @@ function renderCorruptedView() {
   const allSelected = filtered.length > 0 && filtered.every(c => selectedItems.has(c.id));
 
   container.innerHTML = `
-    <div class="section-header">
-      <span class="section-title">
-        <label class="select-all-label">
-          <input type="checkbox" id="corrupted-select-all-cb" ${allSelected ? 'checked' : ''} />
-          ${t('select.all')}
-        </label>
-        ${t('corrupted.title')} · ${filtered.length} ${t('dup.items')}
-      </span>
+    <header class="entry-heading"><h1>${t('corrupted.title')} <small>${filtered.length}</small></h1></header>
+    <div class="review-tools">
+      <label class="select-all-label">
+        <input type="checkbox" id="corrupted-select-all-cb" ${allSelected ? 'checked' : ''} />
+        ${t('select.all')}
+      </label>
     </div>
     <div class="corrupted-hint" style="padding:4px 16px 12px;font-size:0.82rem;color:var(--text-secondary)">
       ${t('corrupted.hint')}
@@ -3308,14 +3288,14 @@ function renderCorruptedView() {
       const uri = item.decrypted?.uris?.filter(Boolean)?.[0] || '';
       return `
       <div class="orphan-item selectable" data-id="${item.id}">
-        <input type="checkbox" class="item-cb" data-id="${item.id}" ${checked} />
+        <input type="checkbox" class="item-cb" aria-label="${escAttr(item.decrypted?.name || t('item.untitled'))}" data-id="${item.id}" ${checked} />
         <div class="item-info">
           <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
           <div class="item-meta">
             ${reasonHtml}
-            <span>👤 ${escHtml(item.decrypted?.username || '—')}</span>
-            ${uri ? `<span>🔗 ${linkUri(uri)}</span>` : ''}
-            <span>📁 ${escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'))}</span>
+            <span>${escHtml(item.decrypted?.username || '—')}</span>
+            ${uri ? `<span>${linkUri(uri)}</span>` : ''}
+            <span>${escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'))}</span>
           </div>
         </div>
       </div>`;
@@ -3508,6 +3488,7 @@ async function checkDeadUrls() {
   }
 
   async function isDomainAlive(domain) {
+    if (isDemoMode) return !domain.endsWith('.invalid');
     const TIMEOUT = 3000;
     const fetchProbe = (async () => {
       const controller = new AbortController();
@@ -3536,14 +3517,11 @@ async function checkDeadUrls() {
   deadUrlCheckProgress = { checked: 0, total: domains.length };
 
   const updateProgress = () => {
-    const badge = document.querySelector('[data-view="dead-urls"] .badge');
+    const badge = $('#badge-dead-urls');
     if (badge) badge.textContent = `${deadUrlCheckProgress.checked}/${deadUrlCheckProgress.total}`;
     // Update progress bar if user is viewing this page
     const bar = document.getElementById('dead-url-progress-fill');
-    if (bar) {
-      const pct = deadUrlCheckProgress.total > 0 ? (deadUrlCheckProgress.checked / deadUrlCheckProgress.total * 100) : 0;
-      bar.style.width = `${pct}%`;
-    }
+    if (bar) bar.value = deadUrlCheckProgress.checked;
     const label = document.getElementById('dead-url-progress-label');
     if (label) label.textContent = `${deadUrlCheckProgress.checked} / ${deadUrlCheckProgress.total} ${t('deadurls.progress.domains')}`;
   };
@@ -3590,15 +3568,9 @@ function renderDeadUrlsView() {
   if (!deadUrlCheckDone && !_deadUrlCheckRunning) {
     container.innerHTML = `
       <div class="empty-state">
-        <div style="font-size:2.5rem;margin-bottom:16px">🔗</div>
-        <div style="font-size:1.05rem;font-weight:600;margin-bottom:8px;color:var(--text-primary)">${t('deadurls.check.title')}</div>
-        <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:24px;max-width:320px;margin-left:auto;margin-right:auto;line-height:1.6">
-          ${t('deadurls.check.desc')}
-        </div>
-        <button id="start-dead-url-check-btn" class="btn-primary" style="
-          width:auto;padding:12px 32px;border-radius:var(--radius-sm);
-          font-size:0.95rem;letter-spacing:0.02em;
-        ">${t('deadurls.start')}</button>
+        <h1>${t('deadurls.check.title')}</h1>
+        <p>${t('deadurls.check.desc')}</p>
+        <button id="start-dead-url-check-btn" class="btn-primary">${t('deadurls.start')}</button>
       </div>`;
     container.querySelector('#start-dead-url-check-btn')?.addEventListener('click', () => {
       checkDeadUrls();
@@ -3609,19 +3581,12 @@ function renderDeadUrlsView() {
 
   // ── Running: show progress bar ──
   if (!deadUrlCheckDone && _deadUrlCheckRunning) {
-    const pct = deadUrlCheckProgress.total > 0 ? (deadUrlCheckProgress.checked / deadUrlCheckProgress.total * 100).toFixed(0) : 0;
     container.innerHTML = `
       <div class="empty-state">
-        <div style="font-size:2rem;margin-bottom:12px">🔍</div>
         <div>${t('deadurls.running')}</div>
-        <div style="width:260px;height:8px;background:var(--bg-secondary);border-radius:4px;margin:16px auto 8px;overflow:hidden">
-          <div id="dead-url-progress-fill" style="height:100%;background:linear-gradient(90deg,var(--brand),var(--brand-light));border-radius:4px;transition:width 0.3s ease;width:${pct}%"></div>
-        </div>
+        <progress id="dead-url-progress-fill" aria-label="${t('deadurls.running')}" max="${Math.max(1, deadUrlCheckProgress.total)}" value="${deadUrlCheckProgress.checked}"></progress>
         <div id="dead-url-progress-label" style="font-size:0.82rem;color:var(--text-secondary)">
           ${deadUrlCheckProgress.checked} / ${deadUrlCheckProgress.total} ${t('deadurls.progress.domains')}
-        </div>
-        <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:4px">
-          ${t('deadurls.whitelist')}
         </div>
       </div>`;
     return;
@@ -3645,31 +3610,26 @@ function renderDeadUrlsView() {
   const allSelected = filtered.length > 0 && filtered.every(c => selectedItems.has(c.id));
 
   container.innerHTML = `
-    <div class="section-header">
-      <span class="section-title">
-        <label class="select-all-label">
-          <input type="checkbox" id="deadurl-select-all-cb" ${allSelected ? 'checked' : ''} />
-          ${t('select.all')}
-        </label>
-        ${t('deadurls.title')} · ${filtered.length} ${t('dup.items')}
-      </span>
-    </div>
-    <div style="padding:4px 16px 12px;font-size:0.82rem;color:var(--text-secondary)">
-      ${t('deadurls.hint')}
+    <header class="entry-heading"><h1>${t('deadurls.title')} <small>${filtered.length}</small></h1></header>
+    <div class="review-tools">
+      <label class="select-all-label">
+        <input type="checkbox" id="deadurl-select-all-cb" ${allSelected ? 'checked' : ''} />
+        ${t('select.all')}
+      </label>
     </div>
     ${filtered.map(item => {
       const checked = selectedItems.has(item.id) ? 'checked' : '';
       const uri = item.decrypted?.uris?.filter(Boolean)?.[0] || '';
       return `
       <div class="orphan-item selectable" data-id="${item.id}">
-        <input type="checkbox" class="item-cb" data-id="${item.id}" ${checked} />
+        <input type="checkbox" class="item-cb" aria-label="${escAttr(item.decrypted?.name || t('item.untitled'))}" data-id="${item.id}" ${checked} />
         <div class="item-info">
           <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
           <div class="item-meta">
             <span class="orphan-tag" style="color:var(--danger)">${t('deadurls.unreachable')}</span>
-            <span>👤 ${escHtml(item.decrypted?.username || '—')}</span>
-            ${uri ? `<span>🔗 ${linkUri(uri)}</span>` : ''}
-            <span>📁 ${escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'))}</span>
+            <span>${escHtml(item.decrypted?.username || '—')}</span>
+            ${uri ? `<span>${linkUri(uri)}</span>` : ''}
+            <span>${escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'))}</span>
           </div>
         </div>
       </div>`;
@@ -3791,11 +3751,11 @@ function renderTypeFilteredView(viewName, typeId) {
     const folder = escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'));
     const hasPasskey = typeId === 1 && (item.raw?.Login?.Fido2Credentials?.length || 0) > 0;
     const hasTotp = typeId === 1 && item.decrypted?.totp;
-    const tags = (hasPasskey ? '<span class="mini-tag passkey">🔑</span>' : '') +
-                 (hasTotp ? '<span class="mini-tag totp">🕐</span>' : '');
+    const tags = (hasPasskey ? '<span class="mini-tag passkey">Passkey</span>' : '') +
+                 (hasTotp ? '<span class="mini-tag totp">TOTP</span>' : '');
     return `
     <div class="orphan-item selectable" data-id="${item.id}">
-      <input type="checkbox" class="item-cb" data-id="${item.id}" ${checked} />
+      <input type="checkbox" class="item-cb" aria-label="${escAttr(item.decrypted?.name || t('item.untitled'))}" data-id="${item.id}" ${checked} />
       <div class="item-info">
         <button type="button" class="entry-name item-name">${name}</button>
         <div class="item-meta">
@@ -3918,26 +3878,21 @@ function renderFavoritesView() {
 
   const allSelected = filtered.length > 0 && filtered.every(c => selectedItems.has(c.id));
 
-  // Type icon helper
-  const typeIcon = (type) => ({ 1: '🔐', 2: '📝', 3: '💳', 4: '🪪', 5: '🔑' }[type] || '📄');
 
   container.innerHTML = `
-    <div class="section-header">
-      <span class="section-title">
-        <label class="select-all-label">
-          <input type="checkbox" id="favorites-select-all-cb" ${allSelected ? 'checked' : ''} />
-          ${t('select.all')}
-        </label>
-        ${t('favorites.title')} · ${filtered.length} ${t('dup.items')}
-      </span>
+    <header class="entry-heading"><h1>${t('favorites.title')} <small>${filtered.length}</small></h1></header>
+    <div class="review-tools">
+      <label class="select-all-label">
+        <input type="checkbox" id="favorites-select-all-cb" ${allSelected ? 'checked' : ''} />
+        ${t('select.all')}
+      </label>
     </div>
     ${filtered.map(item => {
       const checked = selectedItems.has(item.id) ? 'checked' : '';
       const name = escHtml(item.decrypted?.name || t('item.untitled'));
       const folder = escHtml(folderMap[item.raw?.FolderId] || t('item.no.folder'));
-      const icon = typeIcon(item.type);
       const subtitle = item.type === 1
-        ? (item.decrypted?.username ? `👤 ${escHtml(item.decrypted.username)}` : '—')
+        ? (item.decrypted?.username ? item.decrypted.username : '—')
         : item.type === 3
         ? (item.decrypted?.card?.brand || typeName(3))
         : item.type === 4
@@ -3949,12 +3904,12 @@ function renderFavoritesView() {
         : '—';
       return `
       <div class="orphan-item selectable" data-id="${item.id}">
-        <input type="checkbox" class="item-cb" data-id="${item.id}" ${checked} />
+        <input type="checkbox" class="item-cb" aria-label="${escAttr(item.decrypted?.name || t('item.untitled'))}" data-id="${item.id}" ${checked} />
         <div class="item-info">
-          <div class="item-name">${icon} ${name}</div>
+          <div class="item-name">${name}</div>
           <div class="item-meta">
-            <span>${subtitle}</span>
-            <span>📁 ${folder}</span>
+            <span>${escHtml(subtitle)}</span>
+            <span>${folder}</span>
           </div>
         </div>
       </div>`;
@@ -4031,26 +3986,24 @@ function renderNoFolderView() {
     const checked = selectedItems.has(item.id) ? 'checked' : '';
     return `
       <div class="orphan-item selectable" data-id="${item.id}">
-        <input type="checkbox" class="item-cb" data-id="${item.id}" ${checked} />
+        <input type="checkbox" class="item-cb" aria-label="${escAttr(item.decrypted?.name || t('item.untitled'))}" data-id="${item.id}" ${checked} />
         <div class="item-info">
           <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
           <div class="item-meta">
-            <span>👤 ${escHtml(item.decrypted?.username || '—')}</span>
-            ${uri ? `<span>🔗 ${linkUri(uri)}</span>` : `<span class="orphan-tag">${t('filter.no.url')}</span>`}
+            <span>${escHtml(item.decrypted?.username || '—')}</span>
+            ${uri ? `<span>${linkUri(uri)}</span>` : `<span class="orphan-tag">${t('filter.no.url')}</span>`}
           </div>
         </div>
       </div>`;
   };
 
   container.innerHTML = `
-    <div class="section-header">
-      <span class="section-title">
-        <label class="select-all-label">
-          <input type="checkbox" id="nofolder-select-all-cb" ${allSelected ? 'checked' : ''} />
-          ${t('select.all')}
-        </label>
-        ${t('nofolder.title')} · ${filteredItems.length} ${t('nofolder.count')}
-      </span>
+    <header class="entry-heading"><h1>${t('nofolder.title')} <small>${filteredItems.length}</small></h1></header>
+    <div class="review-tools">
+      <label class="select-all-label">
+        <input type="checkbox" id="nofolder-select-all-cb" ${allSelected ? 'checked' : ''} />
+        ${t('select.all')}
+      </label>
     </div>
     <div class="all-items-body" style="position:relative">
       ${hasGroups ? `
@@ -4220,23 +4173,19 @@ function renderTrashView() {
   }
 
   if (filteredTrash.length === 0) {
-    container.innerHTML = searchQuery.trim()
-      ? `<div class="empty-state">🔍 ${t('trash.empty')}</div>`
-      : `<div class="empty-state">${t('trash.empty')}</div>`;
+    container.innerHTML = `<div class="empty-state">${t('nofolder.search.empty')}</div>`;
     return;
   }
 
-  const allSelected = filteredTrash.length > 0 && filteredTrash.every(c => selectedItems.has(c.id));
+  const allSelected = filteredTrash.every(c => selectedItems.has(c.id));
 
   container.innerHTML = `
-    <div class="section-header">
-      <span class="section-title">
-        <label class="select-all-label">
-          <input type="checkbox" id="trash-select-all-cb" ${allSelected ? 'checked' : ''} />
-          ${t('select.all')}
-        </label>
-        🗑️ ${t('trash.title')} · ${filteredTrash.length} ${t('dup.items')}
-      </span>
+    <header class="entry-heading"><h1>${t('trash.title')} <small>${filteredTrash.length}</small></h1></header>
+    <div class="review-tools">
+      <label class="select-all-label">
+        <input type="checkbox" id="trash-select-all-cb" ${allSelected ? 'checked' : ''} />
+        ${t('select.all')}
+      </label>
       <span class="section-hint">${t('trash.hint')}</span>
     </div>
     <div class="trash-batch-bar" id="trash-batch-bar" style="display:none">
@@ -4253,13 +4202,13 @@ function renderTrashView() {
       const deletedAt = item.raw?.DeletedDate ? new Date(item.raw.DeletedDate).toLocaleDateString(getLocale() === 'zh' ? 'zh-CN' : 'en-US') : '';
       return `
         <div class="orphan-item selectable" data-id="${item.id}">
-          <input type="checkbox" class="item-cb" data-id="${item.id}" ${checked} />
+          <input type="checkbox" class="item-cb" aria-label="${escAttr(item.decrypted?.name || t('item.untitled'))}" data-id="${item.id}" ${checked} />
           <div class="item-info">
             <div class="item-name">${escHtml(item.decrypted?.name || t('item.untitled'))}</div>
             <div class="item-meta">
-              <span>👤 ${escHtml(item.decrypted?.username || '—')}</span>
-              ${uri ? `<span>🔗 ${linkUri(uri)}</span>` : `<span class="orphan-tag">${t('health.nourl')}</span>`}
-              ${deletedAt ? `<span class="trash-date">🗓️ ${t('trash.deletedon')} ${deletedAt}</span>` : ''}
+              <span>${escHtml(item.decrypted?.username || '—')}</span>
+              ${uri ? `<span>${linkUri(uri)}</span>` : `<span class="orphan-tag">${t('health.nourl')}</span>`}
+              ${deletedAt ? `<span class="trash-date">${t('trash.deletedon')} ${deletedAt}</span>` : ''}
             </div>
           </div>
         </div>`;
@@ -4282,7 +4231,6 @@ function renderTrashView() {
       if (e.target.checked) selectedItems.add(c.id);
       else selectedItems.delete(c.id);
     });
-    updateTrashBatchBar();
     renderTrashView();
   });
 
@@ -4290,6 +4238,7 @@ function renderTrashView() {
   container.querySelectorAll('.orphan-item').forEach(el => {
     el.addEventListener('click', (e) => {
       if (e.target.closest('.item-cb')) return;
+      if (e.target.closest('a')) return;
       const cipher = allDecryptedTrash.find(c => c.id === el.dataset.id);
       if (cipher) openDetailDrawer(cipher);
     });
@@ -4297,11 +4246,17 @@ function renderTrashView() {
 
   // Trash-specific batch buttons
   setupTrashBatchButtons();
+  updateTrashBatchBar();
 }
 
 function updateTrashBatchBar() {
   const bar = $('#trash-batch-bar');
   if (!bar) return;
+  const boxes = $$('#view-trash .item-cb');
+  const selected = Array.from(boxes).filter(box => box.checked).length;
+  const selectAll = $('#trash-select-all-cb');
+  selectAll.checked = selected === boxes.length;
+  selectAll.indeterminate = selected > 0 && selected < boxes.length;
   if (selectedItems.size > 0) {
     bar.style.display = 'flex';
     $('#trash-batch-count').textContent = t('trash.selected.count', selectedItems.size);
@@ -4327,19 +4282,22 @@ function setupTrashBatchButtons() {
   // Permanent delete — 悲观模式：不可逆操作先 API 成功再更新 UI
   $('#trash-perm-delete-btn')?.addEventListener('click', () => {
     if (selectedItems.size === 0) return;
+    const ids = Array.from(selectedItems);
     showConfirm(
       t('trash.perma.confirm.title'),
-      t('trash.perma.confirm.msg', selectedItems.size),
+      t('trash.perma.confirm.msg', ids.length),
       async () => {
         try {
-          const ids = Array.from(selectedItems);
-
           // Server-side first (pessimistic: confirm deletion before UI update)
           for (let i = 0; i < ids.length; i += 100) {
             await client.permanentDeleteBulk(ids.slice(i, i + 100));
           }
 
           // Only update UI after API success
+          const removed = new Set(ids);
+          allDecryptedTrash = allDecryptedTrash.filter(item => !removed.has(item.id));
+          updateSidebarBadges();
+          renderTrashView();
           showToast(t('trash.perma.ok.count', ids.length), 'success');
           selectedItems.clear();
           updateTrashBatchBar();
@@ -4357,13 +4315,14 @@ function showTrashRestoreModal() {
   const modal = $('#move-folder-modal');
   const list = $('#move-folder-list');
 
+  const ids = Array.from(selectedItems);
   list.innerHTML = `
     <button class="move-folder-option" data-folder-id="__none__">
-      <span>📂</span> <span>${t('trash.restore.none')}</span>
+      <span>${t('trash.restore.none')}</span>
     </button>
     ${folderList.map(f => `
       <button class="move-folder-option" data-folder-id="${f.id}">
-        <span>📁</span> <span>${escHtml(f.name)}</span>
+        <span>${escHtml(f.name)}</span>
       </button>
     `).join('')}
   `;
@@ -4371,46 +4330,43 @@ function showTrashRestoreModal() {
   modal.style.display = 'flex';
 
   list.querySelectorAll('.move-folder-option').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', () => {
       const targetFolderId = btn.dataset.folderId;
       const realFolderId = targetFolderId === '__none__' ? null : targetFolderId;
       const folderName = realFolderId ? folderMap[realFolderId] : t('item.no.folder');
 
       modal.style.display = 'none';
-      try {
-        const ids = Array.from(selectedItems);
-        const idsSet = new Set(ids);
-
-        // Optimistic UI — move from trash to main list
-        const restoredItems = allDecryptedTrash.filter(c => idsSet.has(c.id));
-        allDecryptedTrash = allDecryptedTrash.filter(c => !idsSet.has(c.id));
-        restoredItems.forEach(c => {
-          if (c.raw) {
-            c.raw.DeletedDate = null;
-            c.raw.FolderId = realFolderId;
-          }
-        });
-        allDecryptedCiphers = [...allDecryptedCiphers, ...restoredItems];
-        analysisResult = analyzeCiphers(allDecryptedCiphers);
-        healthResult = analyzeHealth(allDecryptedCiphers);
-        selectedItems.clear();
-        updateTrashBatchBar();
-        updateSidebarBadges();
-        renderFolderList();
-        renderTrashView();
-
-        showToast(t('trash.restore.to', ids.length, folderName), 'success');
-
-        // Server-side: restore first, then move to folder
-        await client.restoreBulk(ids);
-        if (realFolderId) {
+      showConfirm(t('trash.restore'), t('trash.restore.confirm', ids.length, folderName), async () => {
+        try {
+          await client.restoreBulk(ids);
           await client.bulkMoveCiphersToFolder(ids, realFolderId);
+          const idsSet = new Set(ids);
+
+          const restoredItems = allDecryptedTrash.filter(c => idsSet.has(c.id));
+          allDecryptedTrash = allDecryptedTrash.filter(c => !idsSet.has(c.id));
+          restoredItems.forEach(c => {
+            if (c.raw) {
+              c.raw.DeletedDate = null;
+              c.raw.FolderId = realFolderId;
+            }
+          });
+          allDecryptedCiphers = [...allDecryptedCiphers, ...restoredItems];
+          analysisResult = analyzeCiphers(allDecryptedCiphers);
+          healthResult = analyzeHealth(allDecryptedCiphers);
+          selectedItems.clear();
+          updateTrashBatchBar();
+          updateSidebarBadges();
+          renderFolderList();
+          renderTrashView();
+
+          showToast(t('trash.restore.to', ids.length, folderName), 'success');
+
+          resyncVault();
+        } catch (err) {
+          showToast(`${t('trash.restore.fail')}: ${err.message}`, 'error');
+          resyncVault();
         }
-        resyncVault();
-      } catch (err) {
-        showToast(`${t('trash.restore.fail')}: ${err.message}`, 'error');
-        resyncVault();
-      }
+      });
     });
   });
 }
@@ -4480,7 +4436,7 @@ async function handleMerge(groups) {
       // Safety guard: skip sub-groups where passwords differ (ignore empty = passkey-only)
       const nonEmptyPasswords = new Set(sorted.map(i => i.decrypted?.password || '').filter(p => p !== ''));
       if (nonEmptyPasswords.size > 1) {
-        showToast(`⚠️ ${username || '—'} @ ${group.matchKey}: ${t('merge.same.site.password.diff')}`, 'warning');
+        showToast(`${username || '—'} @ ${group.matchKey}: ${t('merge.same.site.password.diff')}`, 'warning');
         continue;
       }
 
@@ -4504,7 +4460,7 @@ async function handleMerge(groups) {
           decryptedPkIds.push(ids.sort().join('|'));
         }
         if (new Set(decryptedPkIds).size > 1) {
-          showToast(`🔑 ${username || '—'} @ ${group.matchKey}: ${t('merge.same.site.passkey.diff')}`, 'warning');
+          showToast(`${username || '—'} @ ${group.matchKey}: ${t('merge.same.site.passkey.diff')}`, 'warning');
           continue;
         }
       }
@@ -4522,7 +4478,7 @@ async function handleMerge(groups) {
 
   // Notify if same-site items were selected but couldn't be grouped for merge
   if (siteCheckedMap.size > 0 && siteMergeGroups.length === 0) {
-    showToast(`⛔ ${t('merge.same.site.username.diff')}`, 'warning');
+    showToast(`${t('merge.same.site.username.diff')}`, 'warning');
   }
 
   const allGroups = [...exactSelectedGroups, ...siteMergeGroups];
@@ -4711,7 +4667,7 @@ async function handleSingleMerge(groups, gi, btnEl) {
     // Same username but different passwords → warn and block (ignore empty = passkey-only)
     const nonEmptyPasswords = new Set(mergeItems.map(i => i.decrypted?.password || '').filter(p => p !== ''));
     if (nonEmptyPasswords.size > 1) {
-      showToast(`⚠️ ${t('merge.same.site.password.diff')}`, 'warning');
+      showToast(`${t('merge.same.site.password.diff')}`, 'warning');
       return;
     }
   }
@@ -4736,7 +4692,7 @@ async function handleSingleMerge(groups, gi, btnEl) {
       decryptedPasskeyIds.push(ids.sort().join('|'));
     }
     if (new Set(decryptedPasskeyIds).size > 1) {
-      showToast(`🔑 ${t('merge.same.site.passkey.diff')}`, 'warning');
+      showToast(`${t('merge.same.site.passkey.diff')}`, 'warning');
       return;
     }
   }
@@ -4778,7 +4734,7 @@ async function handleSingleMerge(groups, gi, btnEl) {
 
     if (operations.errors && operations.errors.length > 0) {
       operations.errors.forEach(e => {
-        showToast(`⚠️ ${e.groupLabel}: ${e.reason}`, 'warning');
+        showToast(`${e.groupLabel}: ${e.reason}`, 'warning');
       });
     }
 
@@ -4804,7 +4760,7 @@ async function handleSingleMerge(groups, gi, btnEl) {
       } catch (err) {
         console.error('[SingleMerge] createCipher failed:', err);
         createSuccess = false;
-        showToast(`❌ ${op.isPasskeyMerge ? `${t('merge.passkey.label')} ` : ''}${t('merge.create.fail')}: ${err.message}`, 'error');
+        showToast(`${op.isPasskeyMerge ? `${t('merge.passkey.label')} ` : ''}${t('merge.create.fail')}: ${err.message}`, 'error');
       }
     }
 
@@ -4832,9 +4788,9 @@ async function handleSingleMerge(groups, gi, btnEl) {
     switchView(currentView);
 
     if (createSuccess) {
-      showToast(`✅ ${escHtml(group.label)} ${t('merge.ok')}`, 'success');
+      showToast(`${escHtml(group.label)} ${t('merge.ok')}`, 'success');
     } else {
-      showToast(`⚠️ ${escHtml(group.label)} ${t('merge.fail')}`, 'warning');
+      showToast(`${escHtml(group.label)} ${t('merge.fail')}`, 'warning');
     }
 
     // Background resync for real mode consistency
@@ -4960,15 +4916,13 @@ function renderCredFileView() {
   const container = $('#view-credfile');
   container.innerHTML = `
     <div class="credfile-view">
-      <div class="section-header">
-        <span class="section-title">${t('credfile.view.title')}</span>
-      </div>
+      <header class="entry-heading"><h1>${t('credfile.view.title')}</h1></header>
       <p class="credfile-desc">
         ${t('credfile.view.desc')}
       </p>
       <div class="credfile-form">
         <div class="form-group">
-          <label>${t('login.server')}</label>
+          <label for="cred-server">${t('login.server')}</label>
           <select id="cred-server">
             <option value="">${t('login.server.official')}</option>
             <option value="https://vault.bitwarden.eu">${t('login.server.eu')}</option>
@@ -4978,19 +4932,19 @@ function renderCredFileView() {
           <p class="field-hint">${t('login.server.selfhost.hint')}</p>
         </div>
         <div class="form-group">
-          <label>client_id</label>
+          <label for="cred-client-id">client_id</label>
           <input type="text" id="cred-client-id" placeholder="user.xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
         </div>
         <div class="form-group">
-          <label>client_secret</label>
+          <label for="cred-client-secret">client_secret</label>
           <input type="password" id="cred-client-secret" placeholder="API secret" />
         </div>
         <div class="form-group">
-          <label>${t('detail.id.email')}</label>
+          <label for="cred-email">${t('detail.id.email')}</label>
           <input type="email" id="cred-email" placeholder="${t('login.email.placeholder')}" />
         </div>
         <div class="form-group">
-          <label>${t('login.password.label')}</label>
+          <label for="cred-password">${t('login.password.label')}</label>
           <input type="password" id="cred-password" placeholder="${t('login.password.placeholder')}" />
         </div>
         <div class="form-group">

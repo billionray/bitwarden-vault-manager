@@ -171,6 +171,7 @@ function makeCipher({ name, url, username, password, folderId, totp, notes, fiel
       username: username || '',
       password: password || '',
       uri: url || '',
+      uris: url ? [url] : [],
       notes: notes || '',
       totp: totp || '',
       fields: (fields || []).map(f => ({
@@ -456,7 +457,7 @@ export function generateDemoData(locale = 'zh') {
   for (const name of staleSites) {
     ciphers.push(makeCipher({
       name,
-      url: 'https://stale-example.com',
+      url: 'https://archive.invalid',
       username: 'old@user.com',
       password: randomPassword(12),
       folderId: 'folder-work',
